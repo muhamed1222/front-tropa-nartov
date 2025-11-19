@@ -329,9 +329,10 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
 
   Widget _buildEmptyState() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
+      padding: const EdgeInsets.only(top: 20),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Иконка bookmark
           SizedBox(
@@ -342,7 +343,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
               width: 50,
               height: 50,
               colorFilter: const ColorFilter.mode(
-                Color(0xFF24A79C),
+                Color(0xFFD3EDEB),
                 BlendMode.srcIn,
               ),
             ),
@@ -365,7 +366,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
             child: Text(
               'Отмечайте понравившиеся места и маршруты флажком и они будут отображаться в этом разделе.',
               style: AppTextStyles.body(
-                color: Colors.black,
+                color: Colors.black.withValues(alpha: 0.6),
               ),
               textAlign: TextAlign.center,
             ),
