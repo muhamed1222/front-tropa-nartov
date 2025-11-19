@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/constants/app_design_system.dart';
@@ -7,7 +8,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/auth_service.dart';
-import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../shared/data/datasources/mock_place_areas_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_categories_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_tags_for_place.dart';
@@ -269,9 +269,15 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
   }
 
   void _shuffleRandom() {
-    setState(() {
-      _filteredPlaces = _applySorting(_filteredPlaces, 'Рандомный порядок');
-    });
+    // Открываем случайную карточку места вместо перетасовки списка
+    if (_filteredPlaces.isEmpty) return;
+    
+    // Выбираем случайное место из отфильтрованного списка
+    final random = Random().nextInt(_filteredPlaces.length);
+    final randomPlace = _filteredPlaces[random];
+    
+    // Открываем детали случайного места
+    _onPlaceTap(randomPlace);
   }
 
   void _openFilterSheet() {
@@ -531,7 +537,7 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
                     onPressed: () {
                       _onSortingChanged(e);
                     },
-                    child: Container(
+                    child: SizedBox(
                       width: 290,
                       height: 114,
                       child: Row(
@@ -570,10 +576,12 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
               ),
               GestureDetector(
                 onTap: _shuffleRandom,
-                child: SmoothContainer(
+                child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                  borderRadius: 12,
-                  color: AppDesignSystem.greyLight,
+                  decoration: BoxDecoration(
+                    color: AppDesignSystem.greyLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -655,7 +663,7 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     }
 
     if (!_isLoading && !_hasError && _filteredPlaces.isEmpty) {
-      return Container(
+      return SizedBox(
         height: 200,
         child: Center(
           child: Column(

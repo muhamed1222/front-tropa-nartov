@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,8 +10,8 @@ import '../../../utils/smooth_border_radius.dart';
 import '../../../core/constants/app_design_system.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/widgets.dart';
-import '../../../core/widgets/app_snackbar.dart';
 import 'routes_filter_widget.dart';
+import '../../favourites/presentation/widgets/route_details_sheet_simple.dart';
 
 class RoutesMainWidget extends StatefulWidget {
   const RoutesMainWidget({super.key, this.scrollController});
@@ -141,7 +141,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
         }
       } catch (e) {
         _routeImages[route.id] = [];
-        print('Ошибка при загрузке изображения для маршрута ${route.id}: $e');
+        // Игнорируем ошибку загрузки изображения
       }
     }
   }
@@ -278,9 +278,15 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
   }
 
   void _shuffleRandom() {
-    setState(() {
-      _filteredRoutes = _applySorting(_filteredRoutes, 'Рандомный порядок');
-    });
+    // Открываем случайную карточку маршрута вместо перетасовки списка
+    if (_filteredRoutes.isEmpty) return;
+    
+    // Выбираем случайный маршрут из отфильтрованного списка
+    final random = Random().nextInt(_filteredRoutes.length);
+    final randomRoute = _filteredRoutes[random];
+    
+    // Открываем детали случайного маршрута
+    _onRouteTap(randomRoute);
   }
 
   void _openRouteFilterSheet() {
@@ -310,7 +316,15 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
   }
 
   void _onRouteTap(AppRoute route) {
-    // print('Нажал на маршрут: ${route.name}');
+    // Открываем детали маршрута
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RouteDetailsSheetSimple(
+        route: route,
+      ),
+    );
   }
 
   // Удалить конкретный тип маршрута
@@ -475,7 +489,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                     onPressed: () {
                       _onSortingChanged(e);
                     },
-                    child: Container(
+                    child: SizedBox(
                       width: 290,
                       height: 114,
                       child: Row(
@@ -514,10 +528,12 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
               ),
               GestureDetector(
                 onTap: _shuffleRandom,
-                child: SmoothContainer(
+                child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                  borderRadius: 12,
-                  color: AppDesignSystem.greyLight,
+                  decoration: BoxDecoration(
+                    color: AppDesignSystem.greyLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -636,7 +652,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                                   colors: [
                                     Colors.transparent,
                                     Colors.transparent,
-                                    Colors.black.withOpacity(0.6),
+                                    Colors.black.withValues(alpha: 0.6),
                                   ],
                                 ),
                               ),
