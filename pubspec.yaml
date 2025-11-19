@@ -1,0 +1,78 @@
+name: tropanartov
+description: "A new Flutter project."
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  provider: ^6.1.1
+  path_provider: ^2.1.5
+  http: ^1.1.0
+  dio: 5.9.0
+  lottie: ^3.3.1
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+  get_it: ^9.0.5
+  shared_preferences: ^2.2.2
+  geolocator: ^14.0.2
+  permission_handler: ^12.0.1
+  flutter_map_animations: ^0.9.0
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+  image_picker: ^1.0.4
+  flutter_svg: ^2.2.1
+  url_launcher: ^6.3.2
+  flutter_secure_storage: ^9.1.1
+  google_fonts: ^6.1.0
+  package_info_plus: ^8.0.0
+  cached_network_image: ^3.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.2
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    - assets/animations/4.json
+    - assets/animations/1.json
+    - assets/animations/1json.json
+    - assets/animations/2.json
+    - assets/animations/1photo.json
+    - assets/Kabardinobalcaria.png
+    - assets/Karachaevocherkessia.png
+    - assets/Severnayaossetia.png
+    - assets/StavropolskyKrai.png
+    - assets/Ingushetia.png
+    - assets/Chechnya.png
+    - assets/Dagestan.png
+    - assets/culture_art.png
+    - assets/national_cuisine.png
+    - assets/holidays_events.png
+    - assets/peoples_languages.png
+    - assets/general_info.png
+    - assets/MaskGroup.svg
+    - assets/view-on.svg
+    - assets/view-off.svg
+    - assets/menu.svg
+    - assets/Cone.png
+    - assets/menu.png
+    - assets/trash.svg
+    - assets/picture.svg
+    - assets/logoapp.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logoapp.png"
+  adaptive_icon_background: "#00BFA5"
+  adaptive_icon_foreground: "assets/logoapp.png"

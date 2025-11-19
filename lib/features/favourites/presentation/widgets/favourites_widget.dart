@@ -1,0 +1,612 @@
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../../core/constants/app_design_system.dart';
+import '../../../../core/constants/app_text_styles.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:tropanartov/models/api_models.dart' hide Image;
+import 'package:tropanartov/services/api_service.dart';
+import 'package:tropanartov/services/auth_service.dart';
+import 'package:tropanartov/utils/smooth_border_radius.dart';
+import 'place_details_sheet_simple.dart';
+import '../../../../core/widgets/widgets.dart';
+
+class FavouritesWidget extends StatefulWidget {
+  final ScrollController scrollController;
+
+  const FavouritesWidget({
+    super.key,
+    required this.scrollController,
+  });
+
+  @override
+  State<FavouritesWidget> createState() => _FavouritesWidgetState();
+}
+
+class _FavouritesWidgetState extends State<FavouritesWidget> {
+  int _selectedButtonIndex = 0; // 0 - места, 1 - маршруты
+  List<Place> _favoritePlaces = [];
+  bool _isLoading = false;
+
+  // Контроллер для скролла карточек
+  late ScrollController _cardsScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _cardsScrollController = widget.scrollController;
+    _loadFavoritePlaces();
+
+    // Устанавливаем светлый status bar при открытии
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    // Не удаляем _cardsScrollController так как он передан извне
+
+    // Восстанавливаем темный status bar при закрытии
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+    );
+    super.dispose();
+  }
+
+  Future<void> _loadFavoritePlaces() async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Необходима авторизация для просмотра избранного'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      final places = await ApiService.getFavoritePlaces(token);
+      if (mounted) {
+        setState(() {
+          _favoritePlaces = places;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Не удалось загрузить избранное. Проверьте подключение к интернету.',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _removeFromFavorites(int index) async {
+    final place = _favoritePlaces[index];
+    final token = await AuthService.getToken();
+    if (token == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Необходима авторизация для удаления из избранного'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await ApiService.removeFromFavorites(place.id, token);
+      if (mounted) {
+        setState(() {
+          _favoritePlaces.removeAt(index);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось удалить из избранного'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDeleteDialog(int index) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Stack(
+          children: [
+            // Размытый фон
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              child: Container(
+                color: Colors.transparent,
+              ),
+            ),
+            // Диалоговое окно
+            Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(14),
+              child: Stack(
+                children: [
+                  SmoothContainer(
+                    width: 384,
+                    padding: const EdgeInsets.all(14),
+                    borderRadius: 20,
+                    color: AppDesignSystem.whiteColor,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Текст вопроса
+                        Padding(
+                          padding: const EdgeInsets.only(right: 14),
+                          child: Text(
+                            'Вы точно хотите убрать это место из избранного?',
+                            style: AppTextStyles.title(),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Кнопки
+                        Row(
+                          children: [
+                            // Кнопка "Нет"
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                },
+                                child: SmoothContainer(
+                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                                  borderRadius: 12,
+                                  border: Border.all(color: AppDesignSystem.primaryColor),
+                                  child: Center(
+                                    child: Text(
+                                      'Нет',
+                                      style: AppTextStyles.button(
+                                        color: AppDesignSystem.primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // Кнопка "Да"
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  _removeFromFavorites(index);
+                                  Navigator.of(context).pop();
+                                },
+                                child: SmoothContainer(
+                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                                  borderRadius: 12,
+                                  color: AppDesignSystem.primaryColor,
+                                  child: Center(
+                                    child: Text(
+                                      'Да',
+                                      style: AppTextStyles.button(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Крестик закрытия
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: SizedBox(
+                        width: 30,
+                        height: 30,
+                        child: const Center(
+                          child: Icon(
+                            Icons.close,
+                            size: 18,
+                            color: AppDesignSystem.textColorTertiary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Иконка bookmark
+          SizedBox(
+            width: 50,
+            height: 50,
+            child: SvgPicture.asset(
+              'assets/bookmark_empty.svg',
+              width: 50,
+              height: 50,
+              colorFilter: const ColorFilter.mode(
+                Color(0xFF24A79C),
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Текст "Здесь пока ничего нет..."
+          Text(
+            'Здесь пока ничего нет...',
+            style: AppTextStyles.title(
+              color: Colors.black,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+
+          // Описание
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 0),
+            child: Text(
+              'Отмечайте понравившиеся места и маршруты флажком и они будут отображаться в этом разделе.',
+              style: AppTextStyles.body(
+                color: Colors.black,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPlaceDetails(Place place) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PlaceDetailsSheetSimple(place: place),
+    );
+  }
+
+  // Виджет для статичной шапки
+  Widget _buildHeader() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Индикатор перетаскивания
+        DragIndicator(
+          color: AppDesignSystem.handleBarColor,
+          padding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: 26),
+
+        // Заголовок
+        Center(
+          child: Text(
+            'Избранное',
+            style: AppTextStyles.title(),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 28),
+
+        // Кнопки переключения
+        SmoothContainer(
+          width: double.infinity,
+          borderRadius: 12,
+          color: AppDesignSystem.greyLight,
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              // Кнопка "Места"
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedButtonIndex = 0;
+                    });
+                  },
+                  child: SmoothContainer(
+                    padding: const EdgeInsets.all(10),
+                    borderRadius: 10,
+                    color: _selectedButtonIndex == 0
+                        ? AppDesignSystem.primaryColor
+                        : Colors.transparent,
+                    child: Center(
+                      child: Text(
+                        'Места',
+                        style: AppTextStyles.small(
+                          color: _selectedButtonIndex == 0
+                              ? AppDesignSystem.whiteColor
+                              : AppDesignSystem.textColorPrimary,
+                          fontWeight: _selectedButtonIndex == 0
+                              ? AppDesignSystem.fontWeightMedium
+                              : AppDesignSystem.fontWeightRegular,
+                          letterSpacing: _selectedButtonIndex == 0
+                              ? 0.0
+                              : AppDesignSystem.letterSpacingTight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Кнопка "Маршруты"
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedButtonIndex = 1;
+                    });
+                  },
+                  child: SmoothContainer(
+                    padding: const EdgeInsets.all(10),
+                    borderRadius: 10,
+                    color: _selectedButtonIndex == 1
+                        ? AppDesignSystem.primaryColor
+                        : Colors.transparent,
+                    child: Center(
+                      child: Text(
+                        'Маршруты',
+                        style: AppTextStyles.small(
+                          color: _selectedButtonIndex == 1
+                              ? AppDesignSystem.whiteColor
+                              : AppDesignSystem.textColorPrimary,
+                          fontWeight: _selectedButtonIndex == 1
+                              ? AppDesignSystem.fontWeightMedium
+                              : AppDesignSystem.fontWeightRegular,
+                          letterSpacing: _selectedButtonIndex == 1
+                              ? 0.0
+                              : AppDesignSystem.letterSpacingTight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  // Виджет для скроллируемого контента с карточками
+  Widget _buildScrollableContent() {
+    bool isEmpty = _selectedButtonIndex == 0
+        ? _favoritePlaces.isEmpty
+        : true; // Для маршрутов пока всегда пусто
+
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return GridView.builder(
+      controller: _cardsScrollController,
+      physics: const BouncingScrollPhysics(),
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 187 / 260,
+      ),
+      itemCount: _favoritePlaces.length,
+      itemBuilder: (context, index) {
+        return _buildPlaceCard(_favoritePlaces[index], index);
+      },
+    );
+  }
+
+  Widget _buildPlaceCard(Place place, int index) {
+    return GestureDetector(
+      onTap: () => _showPlaceDetails(place),
+      child: SmoothContainer(
+        width: 187,
+        height: 260,
+        borderRadius: 16,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Color(0x66000000),
+            ],
+            stops: [0.5, 1.0],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Фото места
+            Positioned.fill(
+              child: ClipPath(
+                clipper: SmoothBorderClipper(radius: 16),
+                child: place.images.isNotEmpty
+                    ? Image.network(
+                  place.images.first.url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: AppDesignSystem.greyPlaceholder,
+                    child: Icon(Icons.photo_camera, size: 48, color: AppDesignSystem.primaryColor),
+                  ),
+                )
+                    : Container(
+                  color: AppDesignSystem.greyPlaceholder,
+                  child: Icon(Icons.photo_camera, size: 48, color: AppDesignSystem.primaryColor),
+                ),
+              ),
+            ),
+
+            // Контент карточки
+            SmoothContainer(
+              width: double.infinity,
+              height: double.infinity,
+              padding: const EdgeInsets.all(10),
+              borderRadius: 16,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x33000000),
+                    Color(0x66000000),
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Верхняя часть - тип места и иконка избранного
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Кнопка типа места
+                      SmoothContainer(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        borderRadius: 26,
+                        child: Text(
+                          place.type,
+                          style: AppTextStyles.small(
+                            color: AppDesignSystem.whiteColor,
+                          ),
+                        ),
+                      ),
+
+                      // Иконка избранного
+                      GestureDetector(
+                        onTap: () {
+                          _showDeleteDialog(index);
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: Icon(
+                          Icons.bookmark,
+                          color: AppDesignSystem.whiteColor,
+                          size: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Нижняя часть - название и описание
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Название места
+                      Text(
+                        place.name,
+                        style: AppTextStyles.small(
+                          color: AppDesignSystem.whiteColor,
+                          fontWeight: AppDesignSystem.fontWeightSemiBold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      // Описание места
+                      Text(
+                        place.description.length > 100
+                            ? '${place.description.substring(0, 100)}...'
+                            : place.description,
+                        style: AppTextStyles.small(
+                          color: AppDesignSystem.whiteColor.withOpacity(0.6),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _loadFavoritePlaces,
+      child: Column(
+        children: [
+          // Статичная шапка
+          _buildHeader(),
+
+          // Скроллируемые карточки
+          Expanded(
+            child: _buildScrollableContent(),
+          ),
+        ],
+      ),
+    );
+  }
+}
