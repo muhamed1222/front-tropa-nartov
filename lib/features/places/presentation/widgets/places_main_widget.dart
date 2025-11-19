@@ -420,14 +420,9 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Индикатор перетаскивания
-        Center(
-          child: SmoothContainer(
-            width: 40,
-            height: 4,
-            borderRadius: 3,
-            color: const Color(0xFFBFBFBF),
-            child: const SizedBox.shrink(),
-          ),
+        DragIndicator(
+          color: AppDesignSystem.handleBarColor,
+          padding: EdgeInsets.zero,
         ),
         const SizedBox(height: 26),
 

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_design_system.dart';
 import 'package:tropanartov/models/api_models.dart' hide Image;
 import 'package:tropanartov/utils/smooth_border_radius.dart';
+import '../../../../core/widgets/widgets.dart';
 
 /// Упрощенный виджет для отображения деталей маршрута
 /// Используется в экране истории активности
@@ -35,15 +36,9 @@ class RouteDetailsSheetSimple extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Индикатор перетаскивания
-                      Center(
-                        child: SmoothContainer(
-                          margin: const EdgeInsets.only(bottom: 20),
-                          width: 40,
-                          height: 4,
-                          borderRadius: 3,
-                          color: const Color(0xFFBFBFBF),
-                          child: const SizedBox.shrink(),
-                        ),
+                      DragIndicator(
+                        color: AppDesignSystem.handleBarColor,
+                        padding: const EdgeInsets.only(bottom: 20),
                       ),
                       // Изображение маршрута
                       if (route.imageUrl != null && route.imageUrl!.isNotEmpty)

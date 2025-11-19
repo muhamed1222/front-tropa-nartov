@@ -298,27 +298,9 @@ class _PeoplesLanguagesWidgetState extends State<PeoplesLanguagesWidget> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               sliver: SliverToBoxAdapter(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0.0, 0.1),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOut,
-                        )),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Container(
-                    key: ValueKey<int>(_selectedButtonIndex),
-                    child: _buildContent(),
-                  ),
+                child: Container(
+                  key: ValueKey<int>(_selectedButtonIndex),
+                  child: _buildContent(),
                 ),
               ),
             ),

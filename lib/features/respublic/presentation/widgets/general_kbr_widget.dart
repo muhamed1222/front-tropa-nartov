@@ -20,10 +20,9 @@ class _GeneralKbrWidgetState extends State<GeneralKbrWidget> {
   double _calculateFixedHeaderHeight() {
     // Без кнопок переключения: 8px (padding top) + 4px (padding bottom) + 4px (индикатор) + 10px (gap) + заголовок
     // Заголовок "Общее о Кабардино-Балкарии" может переноситься на 2 строки
-    // padding top 16px + высота текста 2 строки (20px * 1.2 * 2 = 48px) = 64px
-    // Итого: 8 + 4 + 4 + 10 + 64 = 90px
-    // Добавляем небольшой запас для безопасности
-    return 90.0;
+    // padding vertical 16px (32px total) + высота текста 2 строки (20px * 1.2 * 2 = 48px) = 80px
+    // Итого: 8 + 4 + 4 + 10 + 80 = 106px, используем 100px для безопасности
+    return 82.0;
   }
 
   Widget _buildFixedHeader() {

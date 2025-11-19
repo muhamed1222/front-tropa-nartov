@@ -7,6 +7,7 @@ import '../../../../utils/smooth_border_radius.dart';
 import '../../../../services/republic_service.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/widgets.dart';
 import 'culture_detail_widget.dart';
 import 'national_cuisine_widget.dart';
 import 'holidays_events_widget.dart';
@@ -205,14 +206,9 @@ class _AboutRespublicWidgetState extends State<AboutRespublicWidget> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: SmoothContainer(
-                  width: 40,
-                  height: 4,
-                  borderRadius: 3,
-                  color: const Color(0xFFBFBFBF),
-                  child: const SizedBox.shrink(),
-                ),
+              DragIndicator(
+                color: AppDesignSystem.handleBarColor,
+                padding: EdgeInsets.zero,
               ),
               const SizedBox(height: 26),
 
