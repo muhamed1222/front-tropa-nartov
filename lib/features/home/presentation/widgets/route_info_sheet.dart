@@ -62,20 +62,24 @@ class RouteInfoSheet extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
-                          _buildTimeInfo(
-                            iconAsset: 'assets/car.svg',
-                            time: context
-                                .read<HomeBloc>()
-                                .state
-                                .drivingTime ?? '12 минут',
+                          Flexible(
+                            child: _buildTimeInfo(
+                              iconAsset: 'assets/car.svg',
+                              time: context
+                                  .read<HomeBloc>()
+                                  .state
+                                  .drivingTime ?? '12 минут',
+                            ),
                           ),
                           const SizedBox(width: 8),
-                          _buildTimeInfo(
-                            iconAsset: 'assets/men.svg',
-                            time: context
-                                .read<HomeBloc>()
-                                .state
-                                .walkingTime ?? '2 мин',
+                          Flexible(
+                            child: _buildTimeInfo(
+                              iconAsset: 'assets/men.svg',
+                              time: context
+                                  .read<HomeBloc>()
+                                  .state
+                                  .walkingTime ?? '2 мин',
+                            ),
                           ),
                         ],
                       ),
@@ -203,7 +207,7 @@ class RouteInfoSheet extends StatelessWidget {
 
   Widget _buildTimeInfo({required String iconAsset, required String time}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF24A79C).withValues(alpha: 0.1), // фон с прозрачностью 10%
         borderRadius: BorderRadius.circular(8),
@@ -221,11 +225,14 @@ class RouteInfoSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            time,
-            style: AppTextStyles.body(
-              color: AppDesignSystem.primaryColor,
-              fontWeight: AppDesignSystem.fontWeightSemiBold,
+          Flexible(
+            child: Text(
+              time,
+              style: AppTextStyles.body(
+                color: AppDesignSystem.primaryColor,
+                fontWeight: AppDesignSystem.fontWeightSemiBold,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

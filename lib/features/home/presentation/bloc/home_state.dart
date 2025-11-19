@@ -14,6 +14,7 @@ class HomeState extends Equatable {
   final String? routeEndName; // Название конечной точки
   final String? walkingTime; // Время пешком
   final String? drivingTime; // Время на машине
+  final double? routeDistance; // Расстояние маршрута в метрах
 
   const HomeState({
     this.places = const [],
@@ -29,6 +30,7 @@ class HomeState extends Equatable {
     this.routeEndName,
     this.walkingTime,
     this.drivingTime,
+    this.routeDistance,
   });
 
   HomeState copyWith({
@@ -45,6 +47,7 @@ class HomeState extends Equatable {
     String? routeEndName,
     String? walkingTime,
     String? drivingTime,
+    double? routeDistance,
   }) {
     return HomeState(
       places: places ?? this.places,
@@ -60,6 +63,7 @@ class HomeState extends Equatable {
       routeEndName: routeEndName ?? this.routeEndName,
       walkingTime: walkingTime ?? this.walkingTime,
       drivingTime: drivingTime ?? this.drivingTime,
+      routeDistance: routeDistance ?? this.routeDistance,
     );
   }
 
@@ -78,5 +82,6 @@ class HomeState extends Equatable {
     routeEndName,
     walkingTime,
     drivingTime,
+    routeDistance,
   ];
 }

@@ -139,19 +139,24 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     emit(state.copyWith(isLoading: true));
 
     try {
-      final routeCoordinates = await osrmService.getRoute(event.start, event.end);
+      // Получаем маршрут на машине
+      final drivingRoute = await osrmService.getDrivingRoute(event.start, event.end);
+      
+      // Получаем пешеходный маршрут
+      final walkingRoute = await osrmService.getWalkingRoute(event.start, event.end);
 
-      // Генерируем примерные времена (в реальном приложении получаем из OSRM)
-      final walkingTime = _generateWalkingTime();
-      final drivingTime = _generateDrivingTime();
+      // Форматируем время в читаемый вид
+      final drivingTime = _formatDuration(drivingRoute.duration);
+      final walkingTime = _formatDuration(walkingRoute.duration);
 
       emit(state.copyWith(
-        routeCoordinates: routeCoordinates,
+        routeCoordinates: drivingRoute.coordinates,
         isLoading: false,
         routeStartName: event.startName,
         routeEndName: event.endName,
         walkingTime: walkingTime,
         drivingTime: drivingTime,
+        routeDistance: drivingRoute.distance, // Сохраняем расстояние в метрах
       ));
 
       // После успешного построения маршрута показываем информацию о маршруте
@@ -178,6 +183,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       routeEndName: null,
       walkingTime: null,
       drivingTime: null,
+      routeDistance: null,
     ));
   }
 
@@ -189,14 +195,40 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     ));
   }
 
-  // Вспомогательные методы для генерации времени (заглушки)
-  String _generateWalkingTime() {
-    // В реальном приложении получаем из OSRM
-    return '2 мин';
-  }
-
-  String _generateDrivingTime() {
-    // В реальном приложении получаем из OSRM
-    return '12 минут';
+  /// Форматирует время в секундах в читаемый вид
+  /// Примеры: "2 мин", "15 минут", "1 ч 30 мин", "2 часа"
+  String _formatDuration(double seconds) {
+    if (seconds < 60) {
+      // Меньше минуты - показываем секунды
+      return '${seconds.toInt()} сек';
+    } else if (seconds < 3600) {
+      // Меньше часа - показываем минуты
+      final minutes = (seconds / 60).round();
+      if (minutes == 1) {
+        return '1 мин';
+      } else if (minutes < 5) {
+        return '$minutes мин';
+      } else {
+        return '$minutes минут';
+      }
+    } else {
+      // Больше часа - показываем часы и минуты
+      final hours = (seconds / 3600).floor();
+      final minutes = ((seconds % 3600) / 60).round();
+      
+      if (minutes == 0) {
+        if (hours == 1) {
+          return '1 час';
+        } else if (hours < 5) {
+          return '$hours часа';
+        } else {
+          return '$hours часов';
+        }
+      } else {
+        final hourWord = hours == 1 ? 'час' : (hours < 5 ? 'часа' : 'часов');
+        final minuteWord = minutes == 1 ? 'мин' : (minutes < 5 ? 'мин' : 'минут');
+        return '$hours $hourWord $minutes $minuteWord';
+      }
+    }
   }
 }

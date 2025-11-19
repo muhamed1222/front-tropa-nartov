@@ -5,6 +5,8 @@ import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/secondary_button.dart';
+import '../../../../core/widgets/primary_button.dart';
 
 class ActiveRouteWidget extends StatefulWidget {
   final HomeBloc homeBloc;
@@ -26,6 +28,25 @@ class ActiveRouteWidget extends StatefulWidget {
 
 class _ActiveRouteWidgetState extends State<ActiveRouteWidget> {
   bool _isVisible = true;
+
+  /// Форматирует расстояние в метрах в читаемый вид
+  /// Примеры: "470 м", "1.2 км", "15 км"
+  String _formatDistance(double meters) {
+    if (meters < 1000) {
+      // Меньше километра - показываем в метрах
+      return '${meters.round()} м';
+    } else {
+      // Больше километра - показываем в километрах
+      final kilometers = meters / 1000;
+      if (kilometers < 10) {
+        // До 10 км - один знак после запятой
+        return '${kilometers.toStringAsFixed(1)} км';
+      } else {
+        // Больше 10 км - без знаков после запятой
+        return '${kilometers.round()} км';
+      }
+    }
+  }
 
   void _showCloseConfirmationDialog(BuildContext context) {
     // Временно скрываем виджет вместо полного закрытия
@@ -68,73 +89,84 @@ class _ActiveRouteWidgetState extends State<ActiveRouteWidget> {
 
     return BlocProvider.value(
       value: widget.homeBloc,
-      child: SmoothContainer(
-        height: 56,
-        margin: const EdgeInsets.fromLTRB(AppDesignSystem.paddingHorizontal, 0, AppDesignSystem.paddingHorizontal, 44),
-        padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacingMedium, vertical: AppDesignSystem.spacingSmall),
-        borderRadius: AppDesignSystem.borderRadiusMedium,
-        color: AppDesignSystem.backgroundColor,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: BlocBuilder<HomeBloc, HomeState>(
+        builder: (context, state) {
+          // Форматируем расстояние
+          final distance = state.routeDistance ?? 0.0;
+          final formattedDistance = _formatDistance(distance);
+          
+          // Получаем время пешком (основной режим для активного маршрута)
+          final time = state.walkingTime ?? '—';
+
+          return SmoothContainer(
+            height: 56,
+            margin: const EdgeInsets.only(bottom: 44),
+            padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacingMedium, vertical: AppDesignSystem.spacingSmall),
+            borderRadius: AppDesignSystem.borderRadiusMedium,
+            color: AppDesignSystem.backgroundColor,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Общий путь',
-                  style: AppTextStyles.error(
-                    color: AppDesignSystem.textColorSecondary,
-                  ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Общий путь',
+                      style: AppTextStyles.error(
+                        color: AppDesignSystem.textColorSecondary,
+                      ),
+                    ),
+                    SizedBox(height: AppDesignSystem.spacingTiny / 2),
+                    Text(
+                      formattedDistance,
+                      style: AppTextStyles.small(
+                        fontWeight: AppDesignSystem.fontWeightSemiBold,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: AppDesignSystem.spacingTiny / 2),
-                Text(
-                  '470 м',
-                  style: AppTextStyles.small(
-                    fontWeight: AppDesignSystem.fontWeightSemiBold,
+
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Время в пути',
+                      style: AppTextStyles.error(
+                        color: AppDesignSystem.textColorSecondary,
+                      ),
+                    ),
+                    SizedBox(height: AppDesignSystem.spacingTiny / 2),
+                    Text(
+                      time,
+                      style: AppTextStyles.small(
+                        fontWeight: AppDesignSystem.fontWeightSemiBold,
+                      ),
+                    ),
+                  ],
+                ),
+
+                GestureDetector(
+                  onTap: () {
+                    _showCloseConfirmationDialog(context);
+                  },
+                  child: SmoothContainer(
+                    width: 32,
+                    height: 32,
+                    borderRadius: AppDesignSystem.spacingSmall + 2,
+                    color: AppDesignSystem.greyLight,
+                    child: Icon(
+                      Icons.close,
+                      size: AppDesignSystem.spacingLarge,
+                      color: AppDesignSystem.textColorPrimary,
+                    ),
                   ),
                 ),
               ],
             ),
-
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Время в пути',
-                  style: AppTextStyles.error(
-                    color: AppDesignSystem.textColorSecondary,
-                  ),
-                ),
-                SizedBox(height: AppDesignSystem.spacingTiny / 2),
-                Text(
-                  '2 мин',
-                  style: AppTextStyles.small(
-                    fontWeight: AppDesignSystem.fontWeightSemiBold,
-                  ),
-                ),
-              ],
-            ),
-
-            GestureDetector(
-              onTap: () {
-                _showCloseConfirmationDialog(context);
-              },
-              child: SmoothContainer(
-                width: 32,
-                height: 32,
-                borderRadius: AppDesignSystem.spacingSmall + 2,
-                color: AppDesignSystem.greyLight,
-                child: Icon(
-                  Icons.close,
-                  size: AppDesignSystem.spacingLarge,
-                  color: AppDesignSystem.textColorPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -156,121 +188,47 @@ class ActiveRouteDialog extends StatelessWidget {
       filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
       child: Dialog(
         backgroundColor: Colors.transparent,
-        child: Container(
-          width: 384,
-          height: 131,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Stack(
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Завершить маршрут?',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontFamily: 'Inter',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                      // Крестик прижат к правому краю
-                      GestureDetector(
-                        onTap: onCancel,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppDesignSystem.greyLight,
-                            borderRadius: BorderRadius.circular(AppDesignSystem.spacingSmall + 2),
-                          ),
-                          child: Icon(
-                            Icons.close,
-                            size: AppDesignSystem.spacingLarge,
-                            color: AppDesignSystem.textColorPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 14),
+        child: ClipPath(
+          clipper: SmoothBorderClipper(radius: 20),
+          child: Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+            ),
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Завершить маршрут?',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.title(),
+                ),
+                const SizedBox(height: 20),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Color(0xFF24A79C),
-                              width: 1,
-                            ),
-                          ),
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: onCancel,
-                            child: Text(
-                              'Отменить',
-                              style: TextStyle(
-                                color: Color(0xFF24A79C),
-                                fontSize: 16,
-                                fontWeight: FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SecondaryButton(
+                        text: 'Отменить',
+                        onPressed: onCancel,
                       ),
+                    ),
 
-                      SizedBox(width: 12),
+                    const SizedBox(width: 10),
 
-                      Expanded(
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: Color(0xFF24A79C),
-                          ),
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: onConfirm,
-                            child: Text(
-                              'Да, завершить',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        ),
+                    Expanded(
+                      child: PrimaryButton(
+                        text: 'Да, завершить',
+                        onPressed: onConfirm,
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
