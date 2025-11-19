@@ -108,23 +108,23 @@ class _ChooseRespublicWidgetState extends State<ChooseRespublicWidget> {
   Widget _buildRepublicImage(String imagePath) {
     return RepaintBoundary(
       child: Image.asset(
-        imagePath,
-        width: double.infinity,
-        fit: BoxFit.cover,
+      imagePath,
+      width: double.infinity,
+      fit: BoxFit.cover,
         cacheWidth: 300, // Кешируем изображения для оптимизации
         cacheHeight: 300,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: AppDesignSystem.greyLight,
-            child: Center(
-              child: Icon(
-                Icons.image_not_supported,
-                size: 32,
-                color: AppDesignSystem.handleBarColor,
-              ),
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: AppDesignSystem.greyLight,
+          child: Center(
+            child: Icon(
+              Icons.image_not_supported,
+              size: 32,
+              color: AppDesignSystem.handleBarColor,
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }
@@ -133,46 +133,46 @@ class _ChooseRespublicWidgetState extends State<ChooseRespublicWidget> {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: Column(
-        mainAxisSize: MainAxisSize.max,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Заголовок с единым стилем
-          Container(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Индикатор перетаскивания
-                Center(
-                  child: DragIndicator(
-                    color: AppDesignSystem.handleBarColor,
-                    padding: EdgeInsets.zero,
-                  ),
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Заголовок с единым стилем
+        Container(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Индикатор перетаскивания
+              Center(
+                child: DragIndicator(
+                  color: AppDesignSystem.handleBarColor,
+                  padding: EdgeInsets.zero,
                 ),
-                const SizedBox(height: 10),
+              ),
+              const SizedBox(height: 10),
 
-                // Заголовок с padding vertical 16px
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: Text(
-                      'Выбор республики',
-                      style: GoogleFonts.inter(
-                        color: AppDesignSystem.textColorPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        height: 1.20,
-                      ),
+              // Заголовок с padding vertical 16px
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text(
+                    'Выбор республики',
+                    style: GoogleFonts.inter(
+                      color: AppDesignSystem.textColorPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      height: 1.20,
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
                 : RepaintBoundary(
                     child: GridView.builder(
             controller: widget.scrollController,
@@ -236,78 +236,78 @@ class _RepublicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: double.infinity,
             decoration: BoxDecoration(
-              color: isSelected
+                    color: isSelected
                   ? AppDesignSystem.primaryColor.withValues(alpha: 0.1)
-                  : AppDesignSystem.greyLight,
+                        : AppDesignSystem.greyLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: GestureDetector(
+                      child: GestureDetector(
                 onTap: onTap,
-                child: Stack(
-                  children: [
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Transform.scale(
-                        scale: 1.02,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: Transform.scale(
+                                scale: 1.02,
                         child: imageBuilder(republic.imagePath),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        republic.name,
-                        style: GoogleFonts.inter(
-                          color: isSelected
-                              ? AppDesignSystem.primaryColor
-                              : AppDesignSystem.textColorPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          height: 1.20,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(
+                                republic.name,
+                                style: GoogleFonts.inter(
+                                  color: isSelected
+                                      ? AppDesignSystem.primaryColor
+                                      : AppDesignSystem.textColorPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.20,
+                                ),
+                                textAlign: TextAlign.left,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.left,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          if (!republic.isAvailable)
-            Positioned(
-              left: 4,
-              bottom: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: AppDesignSystem.primaryColor,
-                  borderRadius: BorderRadius.circular(26),
-                ),
-                child: Text(
-                  'Скоро',
-                  style: GoogleFonts.inter(
-                    color: AppDesignSystem.textColorWhite,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    height: 1.20,
                   ),
-                ),
-              ),
-            ),
-        ],
+                  if (!republic.isAvailable)
+                    Positioned(
+                      left: 4,
+                      bottom: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppDesignSystem.primaryColor,
+                          borderRadius: BorderRadius.circular(26),
+                        ),
+                        child: Text(
+                          'Скоро',
+                          style: GoogleFonts.inter(
+                            color: AppDesignSystem.textColorWhite,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            height: 1.20,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
       ),
     );
   }

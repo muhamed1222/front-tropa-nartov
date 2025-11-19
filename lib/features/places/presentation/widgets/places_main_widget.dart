@@ -153,8 +153,8 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     }
 
     // Сохраняем текущее состояние для отката в случае ошибки
-    final currentStatus = _favoriteStatus[placeId] ?? false;
-    
+      final currentStatus = _favoriteStatus[placeId] ?? false;
+
     // Оптимистично обновляем UI
     if (mounted) {
       setState(() {
@@ -574,7 +574,7 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppDesignSystem.greyLight,
+                  color: AppDesignSystem.greyLight,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

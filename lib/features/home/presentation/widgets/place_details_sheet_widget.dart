@@ -214,25 +214,85 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     });
   }
 
-  // Построение кнопки маршрута с проверкой доступности HomeBloc
-  Widget _buildRouteButton(BuildContext context) {
+  // Метод для открытия диалога оценки
+  void _showRatingDialog() {
+    RatingDialog.show(
+      context,
+      widget.place,
+      onReviewAdded: _refreshReviews,
+    );
+  }
+
+  // Метод для обработки нажатия на кнопку "Маршрут"
+  void _onRoutePressed() {
+    // Проверяем доступность HomeBloc
+    if (!_hasHomeBloc(context)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Функция маршрута доступна только на главном экране с картой.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final homeBloc = context.read<HomeBloc>();
+      final currentState = homeBloc.state;
+      
+      // Проверяем, строится ли маршрут
+      final isRouteBuilding = currentState.isLoading && currentState.routePoints.length == 1;
+      if (isRouteBuilding) {
+        return; // Кнопка неактивна во время построения маршрута
+      }
+      
+      // Проверяем, есть ли местоположение пользователя
+      if (currentState.myLocation == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось определить ваше местоположение. Включите геолокацию в настройках.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      // Маршрут всегда будет от моего местоположения до выбранного места
+      homeBloc.add(AddRoutePoint(widget.place));
+
+      // Закрываем PlaceDetailsSheet после добавления в маршрут
+      _sheetController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (mounted) {
+          try {
+            context.read<HomeBloc>().add(const ClosePlaceDetails());
+          } catch (e) {
+            _safePop(context);
+          }
+        }
+      });
+    } catch (e) {
+      // Если HomeBloc недоступен, показываем сообщение
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Функция маршрута доступна только на главном экране с картой.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Widget _buildActionButtonsPanel(BuildContext context) {
     // Проверяем доступность HomeBloc перед использованием BlocBuilder
     if (!_hasHomeBloc(context)) {
-      // Если HomeBloc недоступен, показываем неактивную кнопку
-      return InkWell(
-        onTap: null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 91, vertical: AppDesignSystem.paddingVerticalLarge),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppDesignSystem.borderRadius),
-            color: AppDesignSystem.greyColor,
-          ),
-          child: Text(
-            'Маршрут',
-            style: AppTextStyles.button(),
-            textAlign: TextAlign.center,
-          ),
-        ),
+      // Если HomeBloc недоступен, показываем панель с неактивной кнопкой маршрута
+      return ActionButtonsPanel(
+        onRate: _showRatingDialog,
+        onRoute: null, // Кнопка маршрута неактивна
       );
     }
 
@@ -240,87 +300,20 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     return BlocProvider.value(
       value: context.read<HomeBloc>(),
       child: BlocBuilder<HomeBloc, HomeState>(
-      builder: (context, state) {
-        final isRouteBuilding = state.isLoading && state.routePoints.length == 1;
-        final currentPlaceInRoute = state.routePoints.any((p) => p.id == widget.place.id);
-        // Кнопка всегда активна, кроме случая когда строится маршрут
-        final canAddToRoute = !isRouteBuilding;
+        builder: (context, state) {
+          final isRouteBuilding = state.isLoading && state.routePoints.length == 1;
+          // Кнопка всегда активна, кроме случая когда строится маршрут
+          final canAddToRoute = !isRouteBuilding;
 
-        return InkWell(
-          onTap: canAddToRoute ? () {
-            try {
-              final homeBloc = context.read<HomeBloc>();
-              final currentState = homeBloc.state;
-              
-              // Проверяем, есть ли местоположение пользователя
-              if (currentState.myLocation == null) {
-                // Показываем сообщение об ошибке
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Не удалось определить ваше местоположение. Включите геолокацию в настройках.'),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-                return;
-              }
-
-              // Маршрут всегда будет от моего местоположения до выбранного места
-              homeBloc.add(AddRoutePoint(widget.place));
-
-              // Закрываем PlaceDetailsSheet после добавления в маршрут
-              _sheetController.animateTo(
-                0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOut,
-              );
-              Future.delayed(const Duration(milliseconds: 250), () {
-                if (mounted) {
-                  try {
-                    context.read<HomeBloc>().add(const ClosePlaceDetails());
-                  } catch (e) {
-                    _safePop(context);
-                  }
-                }
-              });
-            } catch (e) {
-              // Если HomeBloc недоступен, показываем сообщение
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Функция маршрута доступна только на главном экране с картой.'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            }
-          } : null,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 91, vertical: AppDesignSystem.paddingVerticalLarge),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppDesignSystem.borderRadius),
-              color: canAddToRoute ? AppDesignSystem.primaryColor : AppDesignSystem.greyColor,
-              border: Border.all(color: canAddToRoute ? AppDesignSystem.primaryColor : AppDesignSystem.greyColor),
-            ),
-            child: isRouteBuilding
-                ? Center(
-                    child: SizedBox(
-                      height: AppDesignSystem.loadingIndicatorSize,
-                      width: AppDesignSystem.loadingIndicatorSize,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppDesignSystem.textColorWhite),
-                      ),
-                    ),
-                  )
-                : Text(
-                    currentPlaceInRoute ? 'Маршрут' : 'Маршрут',
-                    style: AppTextStyles.button(),
-                    textAlign: TextAlign.center,
-                  ),
-          ),
-        );
-      },
+          return ActionButtonsPanel(
+            onRate: _showRatingDialog,
+            onRoute: canAddToRoute ? _onRoutePressed : null,
+          );
+        },
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -532,26 +525,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
-                    decoration: BoxDecoration(
-                      color: AppDesignSystem.backgroundColor,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // Кнопка "Оценить" с диалогом
-                        RatingDialog(
-                          place: widget.place,
-                          onReviewAdded: _refreshReviews, // Обновляем отзывы после добавления
-                        ),
-                        SizedBox(width: AppDesignSystem.spacingSmall + 2),
-                        Expanded(
-                          child: _buildRouteButton(context),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: _buildActionButtonsPanel(context),
                 ),
               ],
             ),
@@ -570,7 +544,10 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
             iconAsset,
             width: AppDesignSystem.spacingLarge,
             height: AppDesignSystem.spacingLarge,
-            color: const Color(0xFF919191),
+            colorFilter: const ColorFilter.mode(
+              Color(0xFF919191),
+              BlendMode.srcIn,
+            ),
           ),
           SizedBox(width: AppDesignSystem.spacingTiny + 2),
           Expanded(
@@ -729,19 +706,6 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Отзывы',
-              style: AppTextStyles.bodyLarge(
-                fontWeight: AppDesignSystem.fontWeightBold,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: AppDesignSystem.spacingLarge),
-
         if (_isLoadingReviews)
           Center(
             child: Padding(
@@ -799,7 +763,12 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                 padding: const EdgeInsets.all(AppDesignSystem.paddingVerticalMedium),
                 child: Column(
                   children: [
-                    Icon(Icons.reviews_outlined, size: 64, color: AppDesignSystem.greyColor),
+                    SvgPicture.asset(
+                      'assets/reviews_empty.svg',
+                      width: 33,
+                      height: 32,
+                      fit: BoxFit.contain,
+                    ),
                     SizedBox(height: AppDesignSystem.spacingLarge),
                     Text(
                       'Пока нет отзывов',

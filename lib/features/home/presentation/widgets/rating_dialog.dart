@@ -20,18 +20,58 @@ class RatingDialog extends StatefulWidget {
 
   @override
   State<RatingDialog> createState() => _RatingDialogState();
+
+  /// Статический метод для показа диалога оценки
+  static void show(BuildContext context, Place place, {VoidCallback? onReviewAdded}) {
+    // Создаем экземпляр виджета для доступа к контроллеру и методам
+    final key = GlobalKey<_RatingDialogState>();
+    final ratingDialog = RatingDialog(
+      key: key,
+      place: place,
+      onReviewAdded: onReviewAdded,
+    );
+    
+    // Временно показываем виджет в диалоге, чтобы получить доступ к состоянию
+    // Этот диалог будет сразу закрыт, когда покажется форма оценки
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent, // Прозрачный фон, чтобы не было видно промежуточного диалога
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return ratingDialog;
+      },
+    );
+    
+    // После первого кадра вызываем метод показа формы оценки из состояния
+    // и закрываем промежуточный диалог
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (key.currentState != null && key.currentState!.mounted) {
+        // Закрываем промежуточный диалог
+        Navigator.of(context).pop();
+        // Показываем форму оценки
+        key.currentState!._showRatingDialog();
+      }
+    });
+  }
 }
 
 class _RatingDialogState extends State<RatingDialog> {
   final TextEditingController _reviewController = TextEditingController();
   bool _isSubmitting = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    // initState не используется для показа формы при использовании через статический метод show
+    // Форма показывается напрямую из статического метода после создания виджета
+  }
 
   void _showRatingDialog() {
     int selectedStars = 1;
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setDialogState) {
@@ -381,18 +421,32 @@ class _RatingDialogState extends State<RatingDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: _showRatingDialog,
-      child: SmoothContainer(
-        padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.paddingHorizontal, vertical: AppDesignSystem.paddingVerticalMedium),
-        borderRadius: AppDesignSystem.borderRadius,
+    // Если виджет используется в showDialog (через статический метод show),
+    // показываем пустой виджет, так как форма оценки будет показана из статического метода
+    // Проверяем, находимся ли мы в модальном route (диалоге)
+    final route = ModalRoute.of(context);
+    if (route != null && route.isCurrent == false) {
+      // Виджет используется в диалоге, возвращаем пустой виджет
+      // Форма оценки показывается через _showRatingDialog() из статического метода
+      return const SizedBox.shrink();
+    }
+    
+    // Если виджет используется как кнопка (не в диалоге), показываем кнопку
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _showRatingDialog,
+        child: SmoothContainer(
+          padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.paddingHorizontal, vertical: AppDesignSystem.paddingVerticalMedium),
+          borderRadius: AppDesignSystem.borderRadius,
           color: AppDesignSystem.backgroundColor,
           border: Border.all(color: AppDesignSystem.primaryColor),
-        child: Text(
-          'Оценить',
-          style: AppTextStyles.body(
-            color: AppDesignSystem.primaryColor,
-            fontWeight: AppDesignSystem.fontWeightMedium,
+          child: Text(
+            'Оценить',
+            style: AppTextStyles.body(
+              color: AppDesignSystem.primaryColor,
+              fontWeight: AppDesignSystem.fontWeightMedium,
+            ),
           ),
         ),
       ),

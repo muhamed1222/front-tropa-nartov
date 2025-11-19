@@ -174,7 +174,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     
     // Оптимистично обновляем UI
     if (mounted) {
-      setState(() {
+    setState(() {
         _favoriteStatus[routeId] = !currentStatus;
       });
     }
@@ -531,7 +531,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppDesignSystem.greyLight,
+                  color: AppDesignSystem.greyLight,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

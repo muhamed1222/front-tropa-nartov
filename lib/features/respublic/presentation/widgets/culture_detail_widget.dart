@@ -291,9 +291,9 @@ class _CultureDetailWidgetState extends State<CultureDetailWidget> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               sliver: SliverToBoxAdapter(
-                child: Container(
-                  key: ValueKey<int>(_selectedButtonIndex),
-                  child: _buildContent(),
+                  child: Container(
+                    key: ValueKey<int>(_selectedButtonIndex),
+                    child: _buildContent(),
                 ),
               ),
             ),

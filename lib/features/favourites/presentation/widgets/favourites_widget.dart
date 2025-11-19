@@ -735,21 +735,21 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
 
     if (_selectedButtonIndex == 0) {
       // Отображаем места
-      return GridView.builder(
-        controller: _cardsScrollController,
-        physics: const BouncingScrollPhysics(),
-        shrinkWrap: true,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 187 / 260,
-        ),
-        itemCount: _favoritePlaces.length,
-        itemBuilder: (context, index) {
-          return _buildPlaceCard(_favoritePlaces[index], index);
-        },
-      );
+    return GridView.builder(
+      controller: _cardsScrollController,
+      physics: const BouncingScrollPhysics(),
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 187 / 260,
+      ),
+      itemCount: _favoritePlaces.length,
+      itemBuilder: (context, index) {
+        return _buildPlaceCard(_favoritePlaces[index], index);
+      },
+    );
     } else {
       // Отображаем маршруты
       return GridView.builder(

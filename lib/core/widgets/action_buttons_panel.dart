@@ -25,57 +25,43 @@ class ActionButtonsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    
-    return IntrinsicHeight(
-      child: OverflowBox(
-        maxWidth: screenWidth,
-        alignment: Alignment.centerLeft,
-        child: Transform.translate(
-          offset: const Offset(-14, 0),
-          child: SizedBox(
-            width: screenWidth,
-            child: Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: AppDesignSystem.shadowColor.withValues(alpha: 0.2),
-                    offset: const Offset(0, -2),
-                    blurRadius: 20,
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: ClipPath(
-                clipper: _TopRoundedSmoothClipper(radius: 20),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 44),
-                  decoration: const BoxDecoration(
-                    color: AppDesignSystem.whiteColor,
-                  ),
-                  child: Row(
-                    children: [
-                      // Кнопка "Оценить" (outline стиль) - используем SecondaryButton
-                      SizedBox(
-                        width: 118,
-                        child: SecondaryButton(
-                          text: rateText ?? 'Оценить',
-                          onPressed: onRate,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Кнопка "Маршрут" (filled стиль) - используем PrimaryButton
-                      Expanded(
-                        child: PrimaryButton(
-                          text: routeText ?? 'Маршрут',
-                          onPressed: onRoute,
-                        ),
-                      ),
-                    ],
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: AppDesignSystem.shadowColor.withValues(alpha: 0.2),
+            offset: const Offset(0, -2),
+            blurRadius: 20,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ClipPath(
+        clipper: _TopRoundedSmoothClipper(radius: 20),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 44),
+          decoration: const BoxDecoration(
+            color: AppDesignSystem.whiteColor,
+          ),
+          child: Row(
+            children: [
+              // Кнопка "Оценить" (outline стиль) - используем SecondaryButton
+              SizedBox(
+                width: 118,
+                child: SecondaryButton(
+                  text: rateText ?? 'Оценить',
+                  onPressed: onRate,
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              // Кнопка "Маршрут" (filled стиль) - используем PrimaryButton
+              Expanded(
+                child: PrimaryButton(
+                  text: routeText ?? 'Маршрут',
+                  onPressed: onRoute,
+                ),
+              ),
+            ],
           ),
         ),
       ),
