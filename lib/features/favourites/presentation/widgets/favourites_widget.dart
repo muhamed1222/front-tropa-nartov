@@ -384,8 +384,8 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
       images: apiPlace.images.map((img) => shared_entities.Image(
         id: img.id.toString(),
         url: img.url,
-        createdAt: img.createdAt?.toString() ?? '',
-        updatedAt: img.updatedAt?.toString() ?? '',
+        createdAt: img.createdAt,
+        updatedAt: img.updatedAt,
       )).toList(),
       address: apiPlace.address,
       hours: apiPlace.hours,
@@ -393,10 +393,10 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
       entry: apiPlace.entry,
       contacts: apiPlace.contacts,
       contactsEmail: apiPlace.contactsEmail,
-      history: apiPlace.history ?? '',
+      history: apiPlace.history,
       latitude: apiPlace.latitude,
       longitude: apiPlace.longitude,
-      reviews: apiPlace.reviews?.map((review) {
+      reviews: apiPlace.reviews.map((review) {
         // Конвертируем Review из api_models в shared_entities.Review
         // shared_entities.Review использует другую структуру полей
         return shared_entities.Review(
@@ -411,9 +411,9 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
           isActive: review.isActive,
           placeId: review.placeId,
         );
-      }).toList() ?? [],
+      }).toList(),
       description: apiPlace.description,
-      overview: apiPlace.overview ?? '',
+      overview: apiPlace.overview,
     );
   }
 
@@ -653,7 +653,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                     ? Image.network(
                   place.images.first.url,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, error, stackTrace) => Container(
                     color: AppDesignSystem.greyPlaceholder,
                     child: Icon(Icons.photo_camera, size: 48, color: AppDesignSystem.primaryColor),
                   ),
@@ -739,7 +739,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                             ? '${place.description.substring(0, 100)}...'
                             : place.description,
                         style: AppTextStyles.small(
-                          color: AppDesignSystem.whiteColor.withOpacity(0.6),
+                          color: AppDesignSystem.whiteColor.withValues(alpha: 0.6),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -804,7 +804,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                             colors: [
                               Colors.transparent,
                               Colors.transparent,
-                              Colors.black.withOpacity(0.6),
+                              Colors.black.withValues(alpha: 0.6),
                             ],
                           ),
                         ),
