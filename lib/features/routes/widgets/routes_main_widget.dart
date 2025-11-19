@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import '../../../models/api_models.dart' hide Image;
 import '../../../services/api_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../utils/smooth_border_radius.dart';
 import '../../../core/constants/app_design_system.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../core/widgets/app_snackbar.dart';
 import 'routes_filter_widget.dart';
 
 class RoutesMainWidget extends StatefulWidget {
@@ -88,10 +90,8 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
 
       final routes = await ApiService.getRoutes();
 
-      // Инициализируем статусы избранного
-      for (var route in routes) {
-        _favoriteStatus[route.id] = false; // По умолчанию не в избранном
-      }
+      // Загружаем статусы избранного для всех маршрутов
+      await _loadFavoriteStatuses(routes);
 
       // Загружаем изображения для маршрутов
       await _loadRouteImages(routes);
@@ -106,6 +106,21 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
         _isLoading = false;
         _hasError = true;
       });
+    }
+  }
+
+  // Метод для загрузки статусов избранного для маршрутов
+  Future<void> _loadFavoriteStatuses(List<AppRoute> routes) async {
+    final token = await AuthService.getToken();
+    if (token == null) return;
+
+    for (final route in routes) {
+      try {
+        final isFavorite = await ApiService.isRouteFavorite(route.id, token);
+        _favoriteStatus[route.id] = isFavorite;
+      } catch (e) {
+        _favoriteStatus[route.id] = false;
+      }
     }
   }
 
@@ -140,11 +155,70 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     return ''; // Возвращаем пустую строку если нет изображений
   }
 
-  // Метод для переключения избранного (без функционала, только визуал)
-  void _toggleFavorite(int routeId) {
-    setState(() {
-      _favoriteStatus[routeId] = !(_favoriteStatus[routeId] ?? false);
-    });
+  // Метод для переключения избранного
+  Future<void> _toggleFavorite(int routeId) async {
+    // Проверяем авторизацию
+    final token = await AuthService.getToken();
+    if (token == null) {
+      if (mounted) {
+        AppSnackBar.showError(
+          context,
+          'Для добавления в избранное необходимо войти в аккаунт',
+        );
+      }
+      return;
+    }
+
+    // Сохраняем текущее состояние для отката в случае ошибки
+    final currentStatus = _favoriteStatus[routeId] ?? false;
+    
+    // Оптимистично обновляем UI
+    if (mounted) {
+      setState(() {
+        _favoriteStatus[routeId] = !currentStatus;
+      });
+    }
+
+    try {
+      if (currentStatus) {
+        await ApiService.removeRouteFromFavorites(routeId, token);
+        if (mounted) {
+          AppSnackBar.showSuccess(
+            context,
+            'Маршрут удален из избранного',
+          );
+        }
+      } else {
+        await ApiService.addRouteToFavorites(routeId, token);
+        if (mounted) {
+          AppSnackBar.showSuccess(
+            context,
+            'Маршрут добавлен в избранное',
+          );
+        }
+      }
+    } catch (e) {
+      // Откатываем изменения при ошибке
+      if (mounted) {
+        setState(() {
+          _favoriteStatus[routeId] = currentStatus;
+        });
+        
+        final errorMessage = e.toString().replaceAll('Exception: ', '');
+        // Если ошибка 404 или 500, возможно API еще не реализовано на backend
+        if (errorMessage.contains('404') || errorMessage.contains('500')) {
+          AppSnackBar.showInfo(
+            context,
+            'Функционал избранного для маршрутов находится в разработке',
+          );
+        } else {
+          AppSnackBar.showError(
+            context,
+            'Не удалось изменить избранное: $errorMessage',
+          );
+        }
+      }
+    }
   }
 
   List<AppRoute> _applyFiltersAndSorting(List<AppRoute> routes) {

@@ -519,6 +519,82 @@ class ApiService {
     }
   }
 
+  // === ИЗБРАННЫЕ МАРШРУТЫ ===
+  // Получить избранные маршруты
+  static Future<List<AppRoute>> getFavoriteRoutes(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/favorites/routes'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      ApiErrorHandler.handleResponse(response);
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => AppRoute.fromJson(json)).toList();
+    } catch (e) {
+      // print('Error in getFavoriteRoutes: $e');
+      rethrow;
+    }
+  }
+
+  // Добавить маршрут в избранное
+  static Future<void> addRouteToFavorites(int routeId, String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/favorites/routes/$routeId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      final error = ApiError.fromJson(json.decode(response.body));
+      throw Exception(error.error);
+    }
+  }
+
+  // Удалить маршрут из избранного
+  static Future<void> removeRouteFromFavorites(int routeId, String token) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/favorites/routes/$routeId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      final error = ApiError.fromJson(json.decode(response.body));
+      throw Exception(error.error);
+    }
+  }
+
+  // Проверить статус избранного маршрута
+  static Future<bool> isRouteFavorite(int routeId, String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/favorites/routes/$routeId/status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return data['is_favorite'] ?? false;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      // print('Error checking favorite status: $e');
+      return false;
+    }
+  }
+
   // Получить статистику пользователя
   static Future<Map<String, int>> getUserStatistics(String token) async {
     try {

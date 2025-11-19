@@ -6,7 +6,10 @@ import 'package:tropanartov/screens/auth/login_screen.dart';
 import '../../../../core/helpers/open_bottom_sheet.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../favourites/presentation/widgets/favourites_widget.dart';
-import '../../../favourites/presentation/widgets/place_details_sheet_simple.dart';
+import '../../../home/presentation/widgets/place_details_sheet_widget.dart';
+import '../../../home/domain/entities/place.dart' as home_entities;
+import '../../../../shared/domain/entities/image.dart' as shared_entities;
+import '../../../../shared/domain/entities/review.dart' as shared_entities;
 import '../../../favourites/presentation/widgets/route_details_sheet_simple.dart';
 import '../widgets/edit_profile_page.dart';
 import '../../../../core/constants/app_design_system.dart';
@@ -348,13 +351,60 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // Конвертирует Place из api_models в Place из home/domain/entities
+  home_entities.Place _convertPlaceToHomeEntity(Place apiPlace) {
+    return home_entities.Place(
+      id: apiPlace.id,
+      name: apiPlace.name,
+      type: apiPlace.type,
+      rating: apiPlace.rating,
+      images: apiPlace.images.map((img) => shared_entities.Image(
+        id: img.id.toString(),
+        url: img.url,
+        createdAt: img.createdAt?.toString() ?? '',
+        updatedAt: img.updatedAt?.toString() ?? '',
+      )).toList(),
+      address: apiPlace.address,
+      hours: apiPlace.hours,
+      weekend: apiPlace.weekend,
+      entry: apiPlace.entry,
+      contacts: apiPlace.contacts,
+      contactsEmail: apiPlace.contactsEmail,
+      history: apiPlace.history ?? '',
+      latitude: apiPlace.latitude,
+      longitude: apiPlace.longitude,
+      reviews: apiPlace.reviews?.map((review) {
+        return shared_entities.Review(
+          id: review.id,
+          text: review.text,
+          authorId: review.userId ?? 0,
+          authorName: review.authorName,
+          authorAvatar: review.authorAvatar ?? '',
+          rating: review.rating,
+          createdAt: review.createdAt,
+          updatedAt: review.updatedAt,
+          isActive: review.isActive,
+          placeId: review.placeId,
+        );
+      }).toList() ?? [],
+      description: apiPlace.description,
+      overview: apiPlace.overview ?? '',
+    );
+  }
+
   void _showPlaceDetails(Place place) {
     Navigator.of(context).pop();
+    // Конвертируем Place из api_models в Place из home/domain/entities
+    final homePlace = _convertPlaceToHomeEntity(place);
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => PlaceDetailsSheetSimple(place: place),
+      builder: (context) => PlaceDetailsSheet(
+        place: homePlace,
+        fullScreen: false,
+      ),
     );
   }
 

@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../shared/data/datasources/mock_place_areas_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_categories_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_tags_for_place.dart';
@@ -139,27 +140,59 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
   // Метод для переключения избранного
   Future<void> _toggleFavorite(int placeId) async {
+    // Проверяем авторизацию
     final token = await AuthService.getToken();
     if (token == null) {
+      if (mounted) {
+        AppSnackBar.showError(
+          context,
+          'Для добавления в избранное необходимо войти в аккаунт',
+        );
+      }
       return;
     }
 
-    try {
-      final currentStatus = _favoriteStatus[placeId] ?? false;
+    // Сохраняем текущее состояние для отката в случае ошибки
+    final currentStatus = _favoriteStatus[placeId] ?? false;
+    
+    // Оптимистично обновляем UI
+    if (mounted) {
+      setState(() {
+        _favoriteStatus[placeId] = !currentStatus;
+      });
+    }
 
+    try {
       if (currentStatus) {
         await ApiService.removeFromFavorites(placeId, token);
+        if (mounted) {
+          AppSnackBar.showSuccess(
+            context,
+            'Место удалено из избранного',
+          );
+        }
       } else {
         await ApiService.addToFavorites(placeId, token);
-      }
-
-      if (mounted) {
-        setState(() {
-          _favoriteStatus[placeId] = !currentStatus;
-        });
+        if (mounted) {
+          AppSnackBar.showSuccess(
+            context,
+            'Место добавлено в избранное',
+          );
+        }
       }
     } catch (e) {
-      // print('Error toggling favorite for place $placeId: $e');
+      // Откатываем изменения при ошибке
+      if (mounted) {
+        setState(() {
+          _favoriteStatus[placeId] = currentStatus;
+        });
+        
+        final errorMessage = e.toString().replaceAll('Exception: ', '');
+        AppSnackBar.showError(
+          context,
+          'Не удалось изменить избранное: $errorMessage',
+        );
+      }
     }
   }
 

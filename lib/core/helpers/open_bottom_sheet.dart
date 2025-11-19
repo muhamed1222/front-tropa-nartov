@@ -8,10 +8,12 @@ Future<T?> openBottomSheet<T>(BuildContext context, Widget Function(ScrollContro
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black,
+    // Добавляем ключ, чтобы bottom sheet пересоздавался каждый раз
     builder: (
       _,
     ) {
       return DraggableScrollableSheet(
+        key: ValueKey(DateTime.now().millisecondsSinceEpoch),
         initialChildSize: 1,
         minChildSize: 0.2,
         maxChildSize: 1,
