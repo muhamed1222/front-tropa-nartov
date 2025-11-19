@@ -650,11 +650,13 @@ class SelectRegionWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: SmoothContainer(
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
         height: 35,
-        borderRadius: 20.0,
+        decoration: BoxDecoration(
           color: Colors.teal,
+          borderRadius: BorderRadius.circular(20.0),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
