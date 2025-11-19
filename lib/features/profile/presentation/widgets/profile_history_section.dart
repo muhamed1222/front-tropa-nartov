@@ -142,7 +142,6 @@ class ProfileHistorySection extends StatelessWidget {
     return SmoothContainer(
       padding: const EdgeInsets.all(AppDesignSystem.spacingXLarge),
       borderRadius: AppDesignSystem.borderRadius,
-      color: AppDesignSystem.backgroundColorSecondary,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

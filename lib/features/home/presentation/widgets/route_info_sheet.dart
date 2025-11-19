@@ -26,63 +26,63 @@ class RouteInfoSheet extends StatelessWidget {
         bottom: 44,
       ),
       child: GestureDetector(
-        onVerticalDragUpdate: (details) {
-          if (details.primaryDelta! > 10) {
-            _closeAllSheets(context);
-          }
-        },
-        child: ClipPath(
-          clipper: SmoothBorderClipper(radius: 20),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    children: [
-                      _buildRoutePointsRow(
-                        from: 'Мое местоположение',
-                        to: context
-                            .read<HomeBloc>()
-                            .state
-                            .routeEndName ?? 'Выбранное место',
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
+      onVerticalDragUpdate: (details) {
+        if (details.primaryDelta! > 10) {
+          _closeAllSheets(context);
+        }
+      },
+      child: ClipPath(
+        clipper: SmoothBorderClipper(radius: 20),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 10,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    _buildRoutePointsRow(
+                      from: 'Мое местоположение',
+                      to: context
+                          .read<HomeBloc>()
+                          .state
+                          .routeEndName ?? 'Выбранное место',
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
                           Flexible(
                             child: _buildTimeInfo(
-                              iconAsset: 'assets/car.svg',
-                              time: context
-                                  .read<HomeBloc>()
-                                  .state
+                          iconAsset: 'assets/car.svg',
+                          time: context
+                              .read<HomeBloc>()
+                              .state
                                   .drivingTime ?? '12 минут',
                             ),
-                          ),
+                        ),
                           const SizedBox(width: 8),
                           Flexible(
                             child: _buildTimeInfo(
-                              iconAsset: 'assets/men.svg',
-                              time: context
-                                  .read<HomeBloc>()
-                                  .state
+                          iconAsset: 'assets/men.svg',
+                          time: context
+                              .read<HomeBloc>()
+                              .state
                                   .walkingTime ?? '2 мин',
                             ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
                       const SizedBox(height: 20),
                       Row(
                         children: [
@@ -108,10 +108,10 @@ class RouteInfoSheet extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
+            ],
             ),
           ),
         ),
@@ -227,7 +227,7 @@ class RouteInfoSheet extends StatelessWidget {
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              time,
+            time,
               style: AppTextStyles.body(
                 color: AppDesignSystem.primaryColor,
                 fontWeight: AppDesignSystem.fontWeightSemiBold,

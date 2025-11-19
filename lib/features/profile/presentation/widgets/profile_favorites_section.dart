@@ -137,7 +137,7 @@ class ProfileFavoritesSection extends StatelessWidget {
               width: 50,
               height: 50,
               colorFilter: const ColorFilter.mode(
-                Color(0xFF24A79C),
+                Color(0xFFD3EDEB),
                 BlendMode.srcIn,
               ),
             ),

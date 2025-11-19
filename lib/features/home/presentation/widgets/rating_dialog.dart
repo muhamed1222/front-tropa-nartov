@@ -25,6 +25,12 @@ class RatingDialog extends StatefulWidget {
   static void show(BuildContext context, Place place, {VoidCallback? onReviewAdded}) {
     // Создаем экземпляр виджета для доступа к контроллеру и методам
     final key = GlobalKey<_RatingDialogState>();
+    BuildContext? dialogContext;
+    
+    // Получаем root Navigator и его overlay context для открытия диалога поверх bottom sheet
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final rootContext = rootNavigator.overlay?.context ?? context;
+    
     final ratingDialog = RatingDialog(
       key: key,
       place: place,
@@ -33,11 +39,14 @@ class RatingDialog extends StatefulWidget {
     
     // Временно показываем виджет в диалоге, чтобы получить доступ к состоянию
     // Этот диалог будет сразу закрыт, когда покажется форма оценки
-    showDialog(
-      context: context,
+    // Используем rootNavigator: true, чтобы диалог открывался поверх bottom sheet
+    final Future<dynamic> intermediateDialogFuture = showDialog(
+      context: rootContext, // Используем root context для открытия в root Navigator
       barrierColor: Colors.transparent, // Прозрачный фон, чтобы не было видно промежуточного диалога
       barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
+      useRootNavigator: true, // Используем root navigator, чтобы диалог был поверх bottom sheet
+      builder: (BuildContext buildContext) {
+        dialogContext = buildContext; // Сохраняем контекст промежуточного диалога
         return ratingDialog;
       },
     );
@@ -45,11 +54,11 @@ class RatingDialog extends StatefulWidget {
     // После первого кадра вызываем метод показа формы оценки из состояния
     // и закрываем промежуточный диалог
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (key.currentState != null && key.currentState!.mounted) {
-        // Закрываем промежуточный диалог
-        Navigator.of(context).pop();
-        // Показываем форму оценки
-        key.currentState!._showRatingDialog();
+      if (key.currentState != null && key.currentState!.mounted && dialogContext != null) {
+        // Закрываем промежуточный диалог используя его собственный контекст
+        Navigator.of(dialogContext!, rootNavigator: true).pop();
+        // Показываем форму оценки используя root context
+        key.currentState!._showRatingDialog(rootContext);
       }
     });
   }
@@ -58,6 +67,7 @@ class RatingDialog extends StatefulWidget {
 class _RatingDialogState extends State<RatingDialog> {
   final TextEditingController _reviewController = TextEditingController();
   bool _isSubmitting = false;
+  NavigatorState? _dialogNavigator; // Сохраняем Navigator диалога
   
   @override
   void initState() {
@@ -66,28 +76,37 @@ class _RatingDialogState extends State<RatingDialog> {
     // Форма показывается напрямую из статического метода после создания виджета
   }
 
-  void _showRatingDialog() {
+  void _showRatingDialog(BuildContext parentContext) {
     int selectedStars = 1;
 
     showDialog(
-      context: context,
+      context: parentContext,
       barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (BuildContext context) {
+      useRootNavigator: true, // Используем root navigator, чтобы диалог был поверх bottom sheet
+      builder: (BuildContext dialogContext) {
+        // Сохраняем Navigator диалога для явного управления
+        _dialogNavigator = Navigator.of(dialogContext, rootNavigator: true);
+        
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setDialogState) {
 
             // Функция для закрытия диалога и сброса значений
             void closeDialog() {
-              Navigator.of(context).pop();
-              _resetDialogValues();
+              if (_dialogNavigator != null && _dialogNavigator!.canPop()) {
+                _dialogNavigator!.pop();
+                _resetDialogValues();
+              }
             }
 
             // Функция для отправки отзыва
             void submitRating() async {
+              debugPrint('submitRating called');
               final token = await AuthService.getToken();
+              debugPrint('Token: ${token != null ? "found" : "null"}');
+              
               if (token == null) {
-                if (context.mounted) {
-                  AppSnackBar.showError(context, 'Необходимо авторизоваться');
+                if (dialogContext.mounted) {
+                  AppSnackBar.showError(dialogContext, 'Необходимо авторизоваться');
                 }
                 return;
               }
@@ -97,24 +116,36 @@ class _RatingDialogState extends State<RatingDialog> {
               });
 
               try {
+                debugPrint('Sending review...');
                 await ApiService.addReview(
                   placeId: widget.place.id,
                   text: _reviewController.text.isNotEmpty ? _reviewController.text : 'Без комментария',
                   rating: selectedStars,
                   token: token,
                 );
+                debugPrint('Review sent successfully');
 
-                if (mounted && context.mounted) {
-                  Navigator.of(context).pop();
-                  _showThankYouDialog();
+                // Не проверяем mounted от RatingDialogState, так как виджет может быть уже размонтирован
+                // Проверяем только возможность закрытия диалога через навигатор
+                if (_dialogNavigator != null && _dialogNavigator!.canPop()) {
+                  debugPrint('Closing dialog and showing thank you');
+                  _dialogNavigator!.pop();
+                  // Используем parentContext вместо dialogContext, так как диалог уже закрыт
+                  _showThankYouDialog(parentContext);
                   widget.onReviewAdded?.call();
+                } else {
+                  debugPrint('Cannot close dialog: _dialogNavigator is null or cannot pop');
                 }
               } catch (e) {
-                if (mounted && context.mounted) {
-                  AppSnackBar.showError(context, 'Ошибка отправки отзыва: $e');
+                debugPrint('Error submitting review: $e');
+                if (mounted && dialogContext.mounted) {
+                  AppSnackBar.showError(dialogContext, 'Ошибка отправки отзыва: $e');
                 }
               } finally {
-                if (mounted) {
+                // Используем dialogContext.mounted или просто setDialogState, если это безопасно
+                // В данном случае, если диалог закрывается, setDialogState может вызвать ошибку,
+                // поэтому проверяем dialogContext.mounted
+                if (dialogContext.mounted) {
                   setDialogState(() {
                     _isSubmitting = false;
                   });
@@ -326,88 +357,140 @@ class _RatingDialogState extends State<RatingDialog> {
     );
   }
 
-  /// Функция для показа окна благодарности
-  void _showThankYouDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return Stack(
-          children: [
-            // Размытый фон
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Container(
-                color: Colors.transparent,
+  /// Функция для показa окна благодарности
+  void _showThankYouDialog(BuildContext parentContext) {
+    NavigatorState? thankYouNavigator;
+    showGeneralDialog(
+      context: parentContext,
+      barrierColor: Colors.transparent, // Прозрачный барьер, так как у нас свой фон
+      barrierDismissible: true, // Можно закрыть кликом мимо
+      barrierLabel: 'Закрыть',
+      useRootNavigator: true, // Используем root navigator
+      transitionDuration: const Duration(milliseconds: 200), // Анимация появления
+      pageBuilder: (BuildContext dialogContext, Animation<double> animation, Animation<double> secondaryAnimation) {
+        thankYouNavigator = Navigator.of(dialogContext, rootNavigator: true);
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              // Размытый и затемненный фон на весь экран (игнорируя SafeArea)
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.4),
+                  ),
+                ),
               ),
-            ),
-            // Диалоговое окно благодарности
-            Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
-              child: Stack(
-                children: [
-                  SmoothContainer(
-                    width: AppDesignSystem.dialogWidth,
+              
+              // Контент диалога по центру
+              // Оборачиваем в SafeArea, чтобы контент не залезал под челку, но фон оставался на весь экран
+              Center(
+                child: SafeArea(
+                  child: Padding(
                     padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
-                    borderRadius: AppDesignSystem.borderRadiusLarge,
+                    child: SmoothContainer(
+                      width: AppDesignSystem.dialogWidth,
+                      padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
+                      borderRadius: AppDesignSystem.borderRadiusLarge,
                       color: AppDesignSystem.backgroundColor,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Иконка сердца
-                        SvgPicture.asset(
-                          'assets/Heart.svg',
-                          width: 60,
-                          height: 60,
-                        ),
-                        SizedBox(height: AppDesignSystem.spacingLarge),
-
-                        // Текст "Спасибо за вашу оценку!"
-                        Text(
-                          'Спасибо за вашу оценку!',
-                          style: AppTextStyles.title(),
-                          textAlign: TextAlign.center,
-                        ),
-                        SizedBox(height: AppDesignSystem.spacingLarge),
-
-                        // Описание
-                        Text(
-                          'Она поможет другим туристам сделать правильный выбор.',
-                          style: AppTextStyles.body(
-                            color: AppDesignSystem.textColorTertiary,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Иконка сердца
+                          SvgPicture.asset(
+                            'assets/Heart.svg',
+                            width: 60,
+                            height: 60,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                          SizedBox(height: AppDesignSystem.spacingLarge),
+
+                          // Текст "Спасибо за вашу оценку!"
+                          Text(
+                            'Спасибо за вашу оценку!',
+                            style: AppTextStyles.title(),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: AppDesignSystem.spacingLarge),
+
+                          // Описание
+                          Text(
+                            'Она поможет другим туристам сделать правильный выбор.',
+                            style: AppTextStyles.body(
+                              color: AppDesignSystem.textColorTertiary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-
-                  // Кнопка крестика справа сверху
-                  Positioned(
-                    top: AppDesignSystem.spacingMedium - 2,
-                    right: AppDesignSystem.spacingMedium - 2,
+                ),
+              ),
+              
+              // Прозрачный GestureDetector на фон для закрытия (если barrierDismissible не сработает как ожидается из-за нашего Stack)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {
+                    if (thankYouNavigator != null && thankYouNavigator!.canPop()) {
+                      thankYouNavigator!.pop();
+                    }
+                    _resetDialogValues();
+                  },
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              // Повторяем контент поверх GestureDetector, чтобы клики по нему не закрывали диалог
+              Center(
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _resetDialogValues();
-                      },
-                      child: SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: Icon(
-                          Icons.close,
-                          size: AppDesignSystem.iconSizeSmall,
-                          color: AppDesignSystem.textColorPrimary,
+                      onTap: () {}, // Перехватываем клики по самому диалогу
+                      child: SmoothContainer(
+                        width: AppDesignSystem.dialogWidth,
+                        padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
+                        borderRadius: AppDesignSystem.borderRadiusLarge,
+                        color: AppDesignSystem.backgroundColor,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Иконка сердца
+                            SvgPicture.asset(
+                              'assets/Heart.svg',
+                              width: 60,
+                              height: 60,
+                            ),
+                            SizedBox(height: AppDesignSystem.spacingLarge),
+
+                            // Текст "Спасибо за вашу оценку!"
+                            Text(
+                              'Спасибо за вашу оценку!',
+                              style: AppTextStyles.title(),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: AppDesignSystem.spacingLarge),
+
+                            // Описание
+                            Text(
+                              'Она поможет другим туристам сделать правильный выбор.',
+                              style: AppTextStyles.body(
+                                color: AppDesignSystem.textColorTertiary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -435,7 +518,7 @@ class _RatingDialogState extends State<RatingDialog> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: _showRatingDialog,
+        onTap: () => _showRatingDialog(context),
         child: SmoothContainer(
           padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.paddingHorizontal, vertical: AppDesignSystem.paddingVerticalMedium),
           borderRadius: AppDesignSystem.borderRadius,

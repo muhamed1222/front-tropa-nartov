@@ -18,11 +18,15 @@ import '../../../../core/widgets/widgets.dart';
 class PlaceDetailsSheet extends StatefulWidget {
   final Place place;
   final bool fullScreen; // Если true, сразу открывается на весь экран
+  final BuildContext? rootContext; // Корневой контекст для открытия диалогов поверх bottom sheet
+  final HomeBloc? homeBloc; // Явно переданный HomeBloc
 
   const PlaceDetailsSheet({
     super.key,
     required this.place,
     this.fullScreen = false,
+    this.rootContext,
+    this.homeBloc,
   });
 
   @override
@@ -190,25 +194,116 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     super.dispose();
   }
 
+  // Получение HomeBloc из доступного контекста
+  HomeBloc? _getHomeBloc(BuildContext context) {
+    // 0. Если передан явно через параметры - используем его
+    if (widget.homeBloc != null) {
+      return widget.homeBloc;
+    }
+
+    // Пробуем несколько способов найти HomeBloc
+    // 1. Текущий контекст (работает, если PlaceDetailsSheet открыт из HomePage)
+    try {
+      final bloc = BlocProvider.of<HomeBloc>(context, listen: false);
+      if (bloc != null) return bloc;
+    } catch (e) {
+      // Продолжаем поиск
+    }
+    
+    // 2. rootContext если передан (контекст корневого Navigator)
+    if (widget.rootContext != null && widget.rootContext != context) {
+      try {
+        final bloc = BlocProvider.of<HomeBloc>(widget.rootContext!, listen: false);
+        if (bloc != null) return bloc;
+      } catch (e) {
+        // Продолжаем поиск
+      }
+    }
+    
+    // 3. Через root Navigator overlay context
+    try {
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      if (rootNavigator.overlay?.context != null) {
+        final overlayContext = rootNavigator.overlay!.context!;
+        if (overlayContext != context && overlayContext != widget.rootContext) {
+          try {
+            final bloc = BlocProvider.of<HomeBloc>(overlayContext, listen: false);
+            if (bloc != null) return bloc;
+          } catch (e) {
+            // Продолжаем поиск
+          }
+        }
+      }
+    } catch (e) {
+      // Игнорируем ошибки
+    }
+    
+    // 4. Ищем в дереве предков через visitAncestorElements
+    // Это работает даже если HomeBloc находится в другом Navigator stack
+    HomeBloc? foundBloc;
+    try {
+      context.visitAncestorElements((element) {
+        // Ищем BlocProvider<HomeBloc> в дереве виджетов
+        final widget = element.widget;
+        if (widget is BlocProvider<HomeBloc>) {
+          // Пробуем получить bloc из разных свойств
+          try {
+            foundBloc = (widget as dynamic).value;
+            if (foundBloc != null) return false;
+          } catch (e) {
+            // Продолжаем поиск
+          }
+          try {
+            foundBloc = (widget as dynamic).bloc;
+            if (foundBloc != null) return false;
+          } catch (e) {
+            // Продолжаем поиск
+          }
+        }
+        return true; // Продолжаем поиск
+      });
+      
+      // Если нашли через visitAncestorElements, пробуем получить через его контекст
+      if (foundBloc == null) {
+        context.visitAncestorElements((element) {
+          try {
+            final bloc = BlocProvider.of<HomeBloc>(element, listen: false);
+            if (bloc != null) {
+              foundBloc = bloc;
+              return false; // Прекращаем поиск
+            }
+          } catch (e) {
+            // Продолжаем поиск
+          }
+          return true;
+        });
+      }
+    } catch (e) {
+      // Игнорируем ошибки
+    }
+    
+    return foundBloc;
+  }
+  
   // Проверка доступности HomeBloc
   bool _hasHomeBloc(BuildContext context) {
-    try {
-      context.read<HomeBloc>();
-      return true;
-    } catch (e) {
-      return false;
-    }
+    return _getHomeBloc(context) != null;
   }
 
   // Безопасное закрытие модального окна
+  // Используется только для HomeBloc сценариев, не для showModalBottomSheet
   void _safePop(BuildContext context) {
     if (!mounted) return;
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted && Navigator.canPop(context)) {
+      if (mounted) {
+        // Используем rootNavigator: false для закрытия только текущего bottom sheet
+        final navigator = Navigator.of(context, rootNavigator: false);
+        if (navigator.canPop()) {
         try {
-          Navigator.of(context).pop();
+            navigator.pop();
         } catch (e) {
           // Игнорируем ошибки закрытия
+          }
         }
       }
     });
@@ -216,8 +311,23 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
 
   // Метод для открытия диалога оценки
   void _showRatingDialog() {
+    // Получаем корневой Navigator для открытия диалогов поверх bottom sheet
+    // Если rootContext передан, используем его, иначе получаем из root Navigator overlay
+    BuildContext? dialogContext;
+    if (widget.rootContext != null) {
+      dialogContext = widget.rootContext;
+    } else {
+      // Получаем корневой контекст из Navigator overlay
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      dialogContext = rootNavigator.overlay?.context;
+    }
+    
+    // Если не удалось получить root context, используем текущий контекст
+    // В этом случае используем useRootNavigator: true в RatingDialog.show
+    final contextForDialog = dialogContext ?? context;
+    
     RatingDialog.show(
-      context,
+      contextForDialog,
       widget.place,
       onReviewAdded: _refreshReviews,
     );
@@ -225,35 +335,41 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
 
   // Метод для обработки нажатия на кнопку "Маршрут"
   void _onRoutePressed() {
-    // Проверяем доступность HomeBloc
-    if (!_hasHomeBloc(context)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Функция маршрута доступна только на главном экране с картой.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+    // Получаем HomeBloc из доступного контекста
+    final homeBloc = _getHomeBloc(context);
+    
+    if (homeBloc == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Функция маршрута доступна только на главном экране с картой.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
     try {
-      final homeBloc = context.read<HomeBloc>();
       final currentState = homeBloc.state;
-      
+
       // Проверяем, строится ли маршрут
       final isRouteBuilding = currentState.isLoading && currentState.routePoints.length == 1;
       if (isRouteBuilding) {
-        return; // Кнопка неактивна во время построения маршрута
+        // Кнопка неактивна во время построения маршрута, но сообщение не показываем
+        return;
       }
-      
+
       // Проверяем, есть ли местоположение пользователя
       if (currentState.myLocation == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Не удалось определить ваше местоположение. Включите геолокацию в настройках.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось определить ваше местоположение. Включите геолокацию в настройках.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
 
@@ -261,34 +377,51 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
       homeBloc.add(AddRoutePoint(widget.place));
 
       // Закрываем PlaceDetailsSheet после добавления в маршрут
-      _sheetController.animateTo(
-        0.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
+      if (_sheetController.isAttached) {
+        _sheetController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+      
       Future.delayed(const Duration(milliseconds: 250), () {
         if (mounted) {
           try {
-            context.read<HomeBloc>().add(const ClosePlaceDetails());
+            // Используем тот же HomeBloc для закрытия
+            final bloc = _getHomeBloc(context);
+            if (bloc != null) {
+              bloc.add(const ClosePlaceDetails());
+            } else {
+              // Если не удалось получить HomeBloc, используем безопасное закрытие
+              _safePop(context);
+            }
           } catch (e) {
+            // Если не удалось закрыть через HomeBloc, используем безопасное закрытие
             _safePop(context);
           }
         }
       });
     } catch (e) {
-      // Если HomeBloc недоступен, показываем сообщение
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Функция маршрута доступна только на главном экране с картой.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      // Если произошла ошибка, показываем сообщение
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ошибка при создании маршрута. Попробуйте снова.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
   Widget _buildActionButtonsPanel(BuildContext context) {
-    // Проверяем доступность HomeBloc перед использованием BlocBuilder
-    if (!_hasHomeBloc(context)) {
+    // Пытаемся получить HomeBloc из доступного контекста
+    final homeBloc = _getHomeBloc(context);
+    
+    // debugPrint('PlaceDetailsSheet: homeBloc is ${homeBloc != null ? 'available' : 'null'}');
+    
+    if (homeBloc == null) {
       // Если HomeBloc недоступен, показываем панель с неактивной кнопкой маршрута
       return ActionButtonsPanel(
         onRate: _showRatingDialog,
@@ -298,12 +431,14 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
 
     // Если HomeBloc доступен, используем BlocBuilder с BlocProvider.value для безопасности
     return BlocProvider.value(
-      value: context.read<HomeBloc>(),
+      value: homeBloc,
       child: BlocBuilder<HomeBloc, HomeState>(
         builder: (context, state) {
           final isRouteBuilding = state.isLoading && state.routePoints.length == 1;
           // Кнопка всегда активна, кроме случая когда строится маршрут
           final canAddToRoute = !isRouteBuilding;
+          
+          // debugPrint('PlaceDetailsSheet: isRouteBuilding=$isRouteBuilding, canAddToRoute=$canAddToRoute');
 
           return ActionButtonsPanel(
             onRate: _showRatingDialog,
@@ -339,25 +474,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
         return NotificationListener<DraggableScrollableNotification>(
           onNotification: (notification) {
             setState(() => _sheetExtent = notification.extent);
-
-            if (notification.extent < _closeThreshold && notification.extent > 0.0 && !_isInitialAnimation) {
-              _sheetController.animateTo(
-                0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOut,
-              );
-              Future.delayed(const Duration(milliseconds: 250), () {
-                if (mounted) {
-                  // Закрываем через HomeBloc только если он доступен (когда открыт из home)
-                  try {
-                    context.read<HomeBloc>().add(const ClosePlaceDetails());
-                  } catch (e) {
-                    // Если HomeBloc недоступен (открыт через showModalBottomSheet), просто закрываем модальное окно
-                    _safePop(context);
-                  }
-                }
-              });
-            }
+            // Логика закрытия полностью удалена, чтобы использовать стандартное поведение isDismissible
             return false;
           },
           child: Container(
@@ -801,8 +918,8 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
 
   Widget _buildReviewItem(String name, double rating, String comment, String date) {
     return Container(
-      margin: const EdgeInsets.only(bottom: AppDesignSystem.paddingVerticalMedium),
-      padding: const EdgeInsets.all(AppDesignSystem.paddingVerticalMedium),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppDesignSystem.borderRadius),
         color: const Color(0xFFF8F8F8),
@@ -821,12 +938,21 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
               ),
               Row(
                 children: [
-                  Icon(Icons.star, color: Colors.amber, size: AppDesignSystem.spacingLarge),
+                  SvgPicture.asset(
+                    'assets/star.svg',
+                    width: 14,
+                    height: 13,
+                    fit: BoxFit.contain,
+                  ),
                   SizedBox(width: AppDesignSystem.spacingTiny),
                   Text(
                     _formatRating(rating),
                     style: AppTextStyles.small(
-                      fontWeight: AppDesignSystem.fontWeightSemiBold,
+                      color: Colors.black,
+                      fontWeight: AppDesignSystem.fontWeightRegular,
+                      letterSpacing: -0.28,
+                    ).copyWith(
+                      height: 1.2,
                     ),
                   ),
                 ],
@@ -911,11 +1037,22 @@ class PlaceNameAndRatingWidget extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.star, color: Colors.amber, size: AppDesignSystem.spacingLarge),
+              SvgPicture.asset(
+                'assets/star.svg',
+                width: 14,
+                height: 13,
+                fit: BoxFit.contain,
+              ),
               SizedBox(width: AppDesignSystem.spacingTiny),
               Text(
                 widget.place.rating.toStringAsFixed(1),
-                style: AppTextStyles.body(),
+                style: AppTextStyles.small(
+                  color: Colors.black,
+                  fontWeight: AppDesignSystem.fontWeightRegular,
+                  letterSpacing: -0.28,
+                ).copyWith(
+                  height: 1.2,
+                ),
               ),
             ],
           ),

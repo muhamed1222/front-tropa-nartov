@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -20,10 +22,12 @@ class PlacesMainWidget extends StatefulWidget {
     super.key,
     this.scrollController,
     this.initialSearchQuery,
+    this.homeBloc,
   });
 
   final ScrollController? scrollController;
   final String? initialSearchQuery;
+  final HomeBloc? homeBloc;
 
   @override
   State<PlacesMainWidget> createState() => _PlacesMainWidgetState();
@@ -36,6 +40,9 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     'Сначала новые',
   ];
   String sortingValue = sortingItems.first;
+  
+  // Ключ для поля поиска, чтобы гарантировать его пересоздание
+  late final Key _searchFieldKey;
 
   List<Place> _places = [];
   List<Place> _filteredPlaces = [];
@@ -64,6 +71,8 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     _searchQuery = widget.initialSearchQuery ?? '';
     _searchController = TextEditingController(text: _searchQuery);
     _cardsScrollController = widget.scrollController ?? ScrollController();
+    // Создаем уникальный ключ для поля поиска при каждой инициализации
+    _searchFieldKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
     _loadPlaces();
 
     // Устанавливаем светлый status bar при открытии
@@ -78,7 +87,7 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
   @override
   void dispose() {
-    _searchController.dispose();
+    // _searchController.dispose(); // Временно отключаем ручной dispose
     // Не удаляем _cardsScrollController если он передан извне
     if (widget.scrollController == null) {
       _cardsScrollController.dispose();
@@ -309,16 +318,35 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     );
   }
 
-  void _onPlaceTap(Place place) {
+  void _onPlaceTap(Place place) async {
     // Конвертируем Place из api_models в Place из home/domain/entities
     final homePlace = place.toEntity();
+    // Сохраняем корневой контекст до открытия bottom sheet для диалогов
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final rootContext = rootNavigator.overlay?.context ?? context;
+    
+    // Получаем HomeBloc из параметров или из контекста
+    HomeBloc? homeBloc = widget.homeBloc;
+    if (homeBloc == null) {
+      try {
+        homeBloc = context.read<HomeBloc>();
+      } catch (e) {
+        // Если HomeBloc недоступен, ничего не делаем
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => PlaceDetailsSheet(
+      isDismissible: true, // Включаем стандартное закрытие по жесту
+      enableDrag: true, 
+      useRootNavigator: true, // Используем root Navigator, чтобы создать отдельный Navigator stack
+      builder: (bottomSheetContext) => PlaceDetailsSheet(
         place: homePlace,
-        fullScreen: true, // Сразу открывается на весь экран
+        fullScreen: true,
+        rootContext: rootContext,
+        homeBloc: homeBloc, // Передаем HomeBloc явно
       ),
     );
   }
@@ -437,13 +465,17 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
         // Поиск и фильтрация
         AppSearchField(
+          key: _searchFieldKey, // Уникальный ключ для гарантии пересоздания виджета
           controller: _searchController,
           hint: 'Поиск мест',
           onChanged: (value) {
+            // Проверяем, что виджет все еще смонтирован перед обновлением состояния
+            if (mounted) {
             setState(() {
               _searchQuery = value;
               _filteredPlaces = _applyFiltersAndSorting(_places);
             });
+            }
           },
           onFilterTap: _openFilterSheet,
         ),

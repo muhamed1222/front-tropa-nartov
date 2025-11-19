@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import 'package:flutter_svg/svg.dart';
 import '../../../models/api_models.dart' hide Image;
 import '../../../services/api_service.dart';
@@ -124,35 +126,35 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     }
   }
 
-  // Исправленный метод для загрузки изображений маршрутов
+  // Оптимизированный метод для загрузки изображений маршрутов
+  // Использует поле imageUrl из модели AppRoute, если оно есть
   Future<void> _loadRouteImages(List<AppRoute> routes) async {
-    for (int i = 0; i < routes.length; i++) {
-      final route = routes[i];
-      try {
-        final places = await ApiService.getPlaces();
-
-        if (places.isNotEmpty) {
-          final firstPlace = places.first;
-          // Преобразуем List<Image> в List<String> (URL строки)
-          final imageUrls = firstPlace.images.map((image) => image.url).toList();
-          _routeImages[route.id] = imageUrls;
-        } else {
-          _routeImages[route.id] = [];
-        }
-      } catch (e) {
+    // Заполняем карту изображений из данных маршрутов
+    // Если у маршрута есть imageUrl, используем его, иначе оставляем пустым
+    for (final route in routes) {
+      if (route.imageUrl != null && route.imageUrl!.isNotEmpty) {
+        _routeImages[route.id] = [route.imageUrl!];
+      } else {
         _routeImages[route.id] = [];
-        // Игнорируем ошибку загрузки изображения
       }
     }
   }
 
-  // Исправленный метод для получения URL изображения маршрута
+  // Метод для получения URL изображения маршрута
   String _getRouteImageUrl(AppRoute route) {
+    // Сначала проверяем imageUrl из модели
+    if (route.imageUrl != null && route.imageUrl!.isNotEmpty) {
+      return route.imageUrl!;
+    }
+    
+    // Затем проверяем кеш
     final images = _routeImages[route.id];
     if (images != null && images.isNotEmpty) {
-      return images.first; // Возвращаем первую картинку из списка
+      return images.first;
     }
-    return ''; // Возвращаем пустую строку если нет изображений
+    
+    // Возвращаем пустую строку если нет изображений
+    return '';
   }
 
   // Метод для переключения избранного

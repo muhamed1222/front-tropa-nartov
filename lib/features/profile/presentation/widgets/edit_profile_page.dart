@@ -404,12 +404,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
               child: Container(color: Colors.transparent),
             ),
             Center(
+              child: ClipPath(
+                clipper: SmoothBorderClipper(radius: 20),
               child: Container(
                 width: MediaQuery.of(context).size.width - (AppDesignSystem.paddingHorizontal * 2),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
+                  padding: const EdgeInsets.all(14),
+                  decoration: const BoxDecoration(
                   color: AppDesignSystem.whiteColor,
-                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -421,7 +422,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 20),
+                      const SizedBox(height: 20),
                     Row(
                       children: [
                         Expanded(
@@ -504,6 +505,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ],
                     ),
                   ],
+                ),
                 ),
               ),
             ),

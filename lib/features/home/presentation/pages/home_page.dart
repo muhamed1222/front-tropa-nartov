@@ -408,7 +408,10 @@ class _HomePageViewState extends State<HomePageView> with TickerProviderStateMix
 
                 // Детали места показываются только если маршрут не построен И маршрут не активен
                 if (state.showPlaceDetails && state.selectedPlace != null && !state.isRouteBuilt && !_isRouteActive)
-                  PlaceDetailsSheet(place: state.selectedPlace!),
+                  PlaceDetailsSheet(
+                    place: state.selectedPlace!,
+                    homeBloc: context.read<HomeBloc>(),
+                  ),
 
                 // Информация о маршруте показывается когда маршрут построен И маршрут не активен
                 if (state.isRouteBuilt && !_isRouteActive)

@@ -69,11 +69,18 @@ class MapMarker extends StatelessWidget {
                     },
                   )
                       : Container(
-                    color: AppDesignSystem.primaryColor,
-                    child: const Icon(
-                      Icons.place,
-                      color: AppDesignSystem.whiteColor,
-                      size: 24,
+                    color: const Color(0xFF126F67),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/marker_place.svg',
+                        width: 20,
+                        height: 22,
+                        fit: BoxFit.contain,
+                        colorFilter: const ColorFilter.mode(
+                          AppDesignSystem.whiteColor,
+                          BlendMode.srcIn,
+                        ),
+                      ),
                     ),
                   )),
             ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -34,11 +36,20 @@ class _HomeBottomSheetWidgetState extends State<HomeBottomSheetWidget> {
 
   void _onSearchSubmitted(String query) {
     if (query.trim().isNotEmpty) {
+      // Получаем HomeBloc из текущего контекста
+      HomeBloc? homeBloc;
+      try {
+        homeBloc = context.read<HomeBloc>();
+      } catch (e) {
+        // Если HomeBloc недоступен, ничего не делаем
+      }
+
       openBottomSheet(
         context,
         (c) => PlacesMainWidget(
           scrollController: c,
           initialSearchQuery: query.trim(),
+          homeBloc: homeBloc, // Передаем HomeBloc явно
         ),
       );
     }
@@ -122,7 +133,18 @@ class MenuItemWidget extends StatelessWidget {
       child: InkWell(
         onTap: () {
           if (item['route'] == '/places') {
-            openBottomSheet(context, (c) => PlacesMainWidget(scrollController: c));
+            // Получаем HomeBloc из текущего контекста
+            HomeBloc? homeBloc;
+            try {
+              homeBloc = context.read<HomeBloc>();
+            } catch (e) {
+              // Если HomeBloc недоступен, ничего не делаем
+            }
+            
+            openBottomSheet(context, (c) => PlacesMainWidget(
+              scrollController: c,
+              homeBloc: homeBloc, // Передаем HomeBloc явно
+            ));
             return;
           }
           if (item['route'] == '/routes') {
@@ -182,7 +204,18 @@ class FavoritesWidget extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          openBottomSheet(context, (c) => FavouritesWidget(scrollController: c));
+          // Получаем HomeBloc из текущего контекста
+          HomeBloc? homeBloc;
+          try {
+            homeBloc = context.read<HomeBloc>();
+          } catch (e) {
+            // Если HomeBloc недоступен, ничего не делаем
+          }
+          
+          openBottomSheet(context, (c) => FavouritesWidget(
+            scrollController: c,
+            homeBloc: homeBloc, // Передаем HomeBloc явно
+          ));
         },
         customBorder: CircleBorder(),
         child: SizedBox(

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -17,10 +19,12 @@ import '../../../../core/widgets/widgets.dart';
 
 class FavouritesWidget extends StatefulWidget {
   final ScrollController scrollController;
+  final HomeBloc? homeBloc; // Добавляем параметр
 
   const FavouritesWidget({
     super.key,
     required this.scrollController,
+    this.homeBloc,
   });
 
   @override
@@ -87,10 +91,11 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     super.dispose();
   }
 
-  Future<void> _loadFavoritePlaces() async {
+  // Универсальный метод для загрузки избранного
+  Future<void> _loadFavorites({required bool isPlaces}) async {
     final token = await AuthService.getToken();
     if (token == null) {
-      if (mounted) {
+      if (mounted && isPlaces) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Необходима авторизация для просмотра избранного'),
@@ -101,32 +106,44 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
       return;
     }
 
-    if (mounted && _selectedButtonIndex == 0) {
+    final expectedIndex = isPlaces ? 0 : 1;
+    if (mounted && _selectedButtonIndex == expectedIndex) {
       setState(() {
         _isLoading = true;
       });
     }
 
     try {
-      final places = await ApiService.getFavoritePlaces(token);
-      if (mounted) {
-        setState(() {
-          _favoritePlaces = places;
-        });
+      if (isPlaces) {
+        final places = await ApiService.getFavoritePlaces(token);
+        if (mounted) {
+          setState(() {
+            _favoritePlaces = places;
+          });
+        }
+      } else {
+        final routes = await ApiService.getFavoriteRoutes(token);
+        if (mounted) {
+          setState(() {
+            _favoriteRoutes = routes;
+          });
+        }
       }
     } catch (e) {
-      if (mounted && _selectedButtonIndex == 0) {
+      if (mounted && _selectedButtonIndex == expectedIndex) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Не удалось загрузить избранные места. Проверьте подключение к интернету.',
+              isPlaces
+                  ? 'Не удалось загрузить избранные места. Проверьте подключение к интернету.'
+                  : 'Не удалось загрузить избранные маршруты. Проверьте подключение к интернету.',
             ),
             duration: const Duration(seconds: 3),
           ),
         );
       }
     } finally {
-      if (mounted && _selectedButtonIndex == 0) {
+      if (mounted && _selectedButtonIndex == expectedIndex) {
         setState(() {
           _isLoading = false;
         });
@@ -134,47 +151,12 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     }
   }
 
-  Future<void> _loadFavoriteRoutes() async {
-    final token = await AuthService.getToken();
-    if (token == null) {
-      return;
-    }
+  // Методы-обертки для обратной совместимости
+  Future<void> _loadFavoritePlaces() => _loadFavorites(isPlaces: true);
+  Future<void> _loadFavoriteRoutes() => _loadFavorites(isPlaces: false);
 
-    if (mounted && _selectedButtonIndex == 1) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
-
-    try {
-      final routes = await ApiService.getFavoriteRoutes(token);
-      if (mounted) {
-        setState(() {
-          _favoriteRoutes = routes;
-        });
-      }
-    } catch (e) {
-      if (mounted && _selectedButtonIndex == 1) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Не удалось загрузить избранные маршруты. Проверьте подключение к интернету.',
-            ),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted && _selectedButtonIndex == 1) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _removeFromFavorites(int index) async {
-    final place = _favoritePlaces[index];
+  // Универсальный метод для удаления из избранного
+  Future<void> _removeFromFavorites({required bool isPlace, required int index}) async {
     final token = await AuthService.getToken();
     if (token == null) {
       if (mounted) {
@@ -189,11 +171,22 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     }
 
     try {
-      await ApiService.removeFromFavorites(place.id, token);
-      if (mounted) {
-        setState(() {
-          _favoritePlaces.removeAt(index);
-        });
+      if (isPlace) {
+        final place = _favoritePlaces[index];
+        await ApiService.removeFromFavorites(place.id, token);
+        if (mounted) {
+          setState(() {
+            _favoritePlaces.removeAt(index);
+          });
+        }
+      } else {
+        final route = _favoriteRoutes[index];
+        await ApiService.removeRouteFromFavorites(route.id, token);
+        if (mounted) {
+          setState(() {
+            _favoriteRoutes.removeAt(index);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -207,7 +200,12 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     }
   }
 
-  void _showDeleteDialog(int index) {
+  // Универсальный метод для показа диалога удаления
+  void _showDeleteDialog({required bool isPlace, required int index}) {
+    final questionText = isPlace
+        ? 'Вы точно хотите убрать это место из избранного?'
+        : 'Вы точно хотите убрать этот маршрут из избранного?';
+    
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
@@ -239,7 +237,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                         Padding(
                           padding: const EdgeInsets.only(right: 14),
                           child: Text(
-                            'Вы точно хотите убрать это место из избранного?',
+                            questionText,
                             style: AppTextStyles.title(),
                             textAlign: TextAlign.center,
                           ),
@@ -276,7 +274,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                             Expanded(
                               child: GestureDetector(
                                 onTap: () {
-                                  _removeFromFavorites(index);
+                                  _removeFromFavorites(isPlace: isPlace, index: index);
                                   Navigator.of(context).pop();
                                 },
                                 child: SmoothContainer(
@@ -423,6 +421,16 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     // Конвертируем Place из api_models в Place из home/domain/entities
     final homePlace = _convertPlaceToHomeEntity(place);
     
+    // Получаем HomeBloc из параметров или из текущего контекста
+    HomeBloc? homeBloc = widget.homeBloc;
+    if (homeBloc == null) {
+      try {
+        homeBloc = context.read<HomeBloc>();
+      } catch (e) {
+        // Если HomeBloc недоступен, ничего не делаем
+      }
+    }
+    
     // Используем тот же компонент, что и на карте
     showModalBottomSheet(
       context: context,
@@ -431,6 +439,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
       builder: (context) => PlaceDetailsSheet(
         place: homePlace,
         fullScreen: false,
+        homeBloc: homeBloc, // Передаем HomeBloc явно
       ),
     );
   }
@@ -450,160 +459,6 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
   String _getRouteImageUrl(AppRoute route) {
     // TODO: Реализовать загрузку изображений из остановок маршрута или из API
     return '';
-  }
-
-  Future<void> _removeRouteFromFavorites(int index) async {
-    final route = _favoriteRoutes[index];
-    final token = await AuthService.getToken();
-    if (token == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Необходима авторизация для удаления из избранного'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      await ApiService.removeRouteFromFavorites(route.id, token);
-      if (mounted) {
-        setState(() {
-          _favoriteRoutes.removeAt(index);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Не удалось удалить из избранного'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  void _showDeleteRouteDialog(int index) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return Stack(
-          children: [
-            // Размытый фон
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Container(
-                color: Colors.transparent,
-              ),
-            ),
-            // Диалоговое окно
-            Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(14),
-              child: Stack(
-                children: [
-                  SmoothContainer(
-                    width: 384,
-                    padding: const EdgeInsets.all(14),
-                    borderRadius: 20,
-                    color: AppDesignSystem.whiteColor,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Текст вопроса
-                        Padding(
-                          padding: const EdgeInsets.only(right: 14),
-                          child: Text(
-                            'Вы точно хотите убрать этот маршрут из избранного?',
-                            style: AppTextStyles.title(),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Кнопки
-                        Row(
-                          children: [
-                            // Кнопка "Нет"
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context).pop();
-                                },
-                                child: SmoothContainer(
-                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                                  borderRadius: 12,
-                                  border: Border.all(color: AppDesignSystem.primaryColor),
-                                  child: Center(
-                                    child: Text(
-                                      'Нет',
-                                      style: AppTextStyles.button(
-                                        color: AppDesignSystem.primaryColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-
-                            // Кнопка "Да"
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  _removeRouteFromFavorites(index);
-                                  Navigator.of(context).pop();
-                                },
-                                child: SmoothContainer(
-                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                                  borderRadius: 12,
-                                  color: AppDesignSystem.primaryColor,
-                                  child: Center(
-                                    child: Text(
-                                      'Да',
-                                      style: AppTextStyles.button(),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Крестик закрытия
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: SizedBox(
-                        width: 30,
-                        height: 30,
-                        child: const Center(
-                          child: Icon(
-                            Icons.close,
-                            size: 18,
-                            color: AppDesignSystem.textColorTertiary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   // Виджет для статичной шапки
@@ -849,7 +704,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                       // Иконка избранного
                       GestureDetector(
                         onTap: () {
-                          _showDeleteDialog(index);
+                          _showDeleteDialog(isPlace: true, index: index);
                         },
                         behavior: HitTestBehavior.opaque,
                         child: Icon(
@@ -961,7 +816,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                         left: 10,
                         child: FavoriteButton(
                           isFavorite: true, // Всегда true, так как это экран избранного
-                          onTap: () => _showDeleteRouteDialog(index),
+                          onTap: () => _showDeleteDialog(isPlace: false, index: index),
                         ),
                       ),
 
@@ -1064,13 +919,9 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: () async {
-        if (_selectedButtonIndex == 0) {
-          await _loadFavoritePlaces();
-        } else {
-          await _loadFavoriteRoutes();
-        }
-      },
+      onRefresh: _selectedButtonIndex == 0
+          ? _loadFavoritePlaces
+          : _loadFavoriteRoutes,
       child: Column(
         children: [
           // Статичная шапка
