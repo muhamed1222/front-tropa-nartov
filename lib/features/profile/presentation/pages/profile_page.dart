@@ -94,7 +94,7 @@ class _ProfilePageState extends State<ProfilePage> {
         // Перенаправляем на экран авторизации через root navigator
         Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const AuthAuthorizationScreen(),
+            builder: (context) => const AuthLoginScreen(),
           ),
           (route) => false,
         );
@@ -114,7 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
         // Перенаправляем на экран авторизации через root navigator
         Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const AuthAuthorizationScreen(),
+            builder: (context) => const AuthLoginScreen(),
           ),
           (route) => false,
         );
@@ -343,7 +343,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const AuthAuthorizationScreen(),
+            builder: (context) => const AuthLoginScreen(),
           ),
           (route) => false,
         );

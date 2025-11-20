@@ -341,6 +341,69 @@ class ApiService {
     }
   }
 
+  // === ВОССТАНОВЛЕНИЕ ПАРОЛЯ ===
+  
+  /// Запрос на отправку кода восстановления пароля
+  /// Отправляет код на указанный email
+  static Future<void> forgotPassword(String email) async {
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.post(
+          Uri.parse('$baseUrl/auth/forgot-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({'email': email.trim()}),
+        );
+      });
+
+      ApiErrorHandler.handleResponse(response);
+      // Успешный ответ (200) - код отправлен
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
+    }
+  }
+
+  /// Проверка кода восстановления пароля
+  /// Проверяет, что код действителен
+  /// Возвращает void при успехе, выбрасывает исключение при ошибке
+  static Future<void> verifyResetCode(String token) async {
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.post(
+          Uri.parse('$baseUrl/auth/verify-reset-code'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({'token': token.trim()}),
+        );
+      });
+
+      ApiErrorHandler.handleResponse(response);
+      // Успешный ответ (200) - код подтвержден
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
+    }
+  }
+
+  /// Сброс пароля с использованием токена восстановления
+  /// Устанавливает новый пароль для пользователя
+  static Future<void> resetPassword(String token, String newPassword) async {
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.post(
+          Uri.parse('$baseUrl/auth/reset-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'token': token.trim(),
+            'password': newPassword.trim(),
+          }),
+        );
+      });
+
+      ApiErrorHandler.handleResponse(response);
+      // Успешный ответ (200) - пароль успешно сброшен
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
+    }
+  }
+
   static Future<List<Review>> getReviewsForPlace(int placeId) async {
     try {
       final response = await http.get(

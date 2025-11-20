@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import '../../../config/app_config.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/auth_constants.dart';
 import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
+import '../../../services/api_service.dart';
+import '../../../services/auth_service.dart';
+import '../../../core/widgets/app_snackbar.dart';
 import 'package:tropanartov/features/home/presentation/pages/home_page.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'login_screen.dart';
 
 class AuthRecoveryThreeScreen extends StatefulWidget {
   final String email;
@@ -61,45 +62,42 @@ class _AuthRecoveryThreeScreenState extends State<AuthRecoveryThreeScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/auth/reset-password'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'token': widget.resetToken,
-          'password': _newpasswordController.text.trim(),
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final newPassword = _newpasswordController.text.trim();
+      
+      // 1. Сбрасываем пароль
+      await ApiService.resetPassword(widget.resetToken, newPassword);
 
-      if (response.statusCode == 200) {
-        // Показываем сообщение об успехе
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Пароль успешно изменен'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              margin: EdgeInsets.all(16),
-            ),
-          );
-        }
+      // 2. Автоматически входим с новым паролем
+      try {
+        final loginResponse = await ApiService.login(widget.email, newPassword);
+        await AuthService.saveToken(loginResponse.token);
+        await AuthService.saveUser(loginResponse.user);
 
-        // Переходим на главную страницу
         if (mounted) {
+          // Показываем сообщение об успехе
+          AppSnackBar.showSuccess(context, 'Пароль успешно изменен');
+
+          // Переходим на главную страницу
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const HomePage()),
             (route) => false,
           );
         }
-      } else {
-        final errorData = json.decode(response.body);
+      } catch (loginError) {
+        // Если автоматический вход не удался, все равно показываем успех
+        // и перенаправляем на экран входа
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorData['error'] ?? 'Ошибка сброса пароля'),
-              backgroundColor: AuthConstants.errorColor,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
+          AppSnackBar.showSuccess(
+            context, 
+            'Пароль успешно изменен. Пожалуйста, войдите с новым паролем.',
+          );
+          
+          // Перенаправляем на экран входа
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => const AuthLoginScreen(),
             ),
+            (route) => false,
           );
         }
       }
@@ -109,14 +107,7 @@ class _AuthRecoveryThreeScreenState extends State<AuthRecoveryThreeScreen> {
             ? e.message 
             : 'Ошибка подключения. Проверьте интернет и попробуйте снова.';
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: AuthConstants.errorColor,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        AppSnackBar.showError(context, errorMessage);
       }
     } finally {
       if (mounted) {
@@ -154,7 +145,7 @@ class _AuthRecoveryThreeScreenState extends State<AuthRecoveryThreeScreen> {
       body: SafeArea(
         child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(14.0),
+          padding: EdgeInsets.all(AuthConstants.paddingHorizontal),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,

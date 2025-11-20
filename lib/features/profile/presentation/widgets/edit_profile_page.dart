@@ -469,7 +469,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 if (!context.mounted) return;
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(
-                                    builder: (context) => const AuthAuthorizationScreen(),
+                                    builder: (context) => const AuthLoginScreen(),
                                   ),
                                   (route) => false,
                                 );

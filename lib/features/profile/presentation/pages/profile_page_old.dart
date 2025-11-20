@@ -376,7 +376,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const AuthAuthorizationScreen(),
+            builder: (context) => const AuthLoginScreen(),
           ),
           (route) => false,
         );

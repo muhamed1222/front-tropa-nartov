@@ -286,10 +286,10 @@ class _AppFormFieldState extends State<AppFormField> {
             controller: widget.controller,
             onChanged: (value) {
               widget.onChanged?.call(value);
-              if (widget.validator != null) {
-                final error = widget.validator!(value);
+              // Очищаем ошибку при изменении текста, чтобы она не показывалась во время ввода
+              if (_errorText != null) {
                 setState(() {
-                  _errorText = error;
+                  _errorText = null;
                 });
               }
             },
@@ -302,8 +302,19 @@ class _AppFormFieldState extends State<AppFormField> {
             maxLength: widget.maxLength,
             enabled: widget.enabled,
             readOnly: widget.readOnly,
-            validator: widget.validator,
-            autovalidateMode: widget.autovalidateMode,
+            validator: (value) {
+              final error = widget.validator?.call(value);
+              // Обновляем _errorText для отображения ошибки
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _errorText = error;
+                  });
+                }
+              });
+              return error;
+            },
+            autovalidateMode: widget.autovalidateMode ?? AutovalidateMode.disabled,
             cursorColor: AppDesignSystem.primaryColor, // #24a79c
             cursorWidth: 1.5, // По дизайну из Figma
             cursorHeight: 19.0, // По дизайну из Figma

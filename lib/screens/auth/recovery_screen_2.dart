@@ -1,15 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/auth_constants.dart';
-import '../../../config/app_config.dart';
+import '../../../core/constants/app_design_system.dart';
 import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
+import '../../../services/api_service.dart';
+import '../../../core/widgets/app_snackbar.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_1.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_3.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class AuthRecoveryTwoScreen extends StatefulWidget {
   final String email;
@@ -27,7 +28,12 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
   final _emailFocusNode = FocusNode();
   final _codeFocusNode = FocusNode();
   bool _isLoading = false;
+  bool _isResendingCode = false;
   bool _autoValidate = false;
+  
+  // Таймер для повторной отправки кода
+  int _resendTimerSeconds = 60;
+  Timer? _resendTimer;
 
   // Используем AuthValidator для валидации
   String? _validateEmail(String? value) {
@@ -60,56 +66,40 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/auth/verify-reset-code'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': _emailController.text.trim(),
-          'token': _codeController.text.trim(),
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final code = _codeController.text.trim();
+      await ApiService.verifyResetCode(code);
 
-      if (response.statusCode == 200) {
-        final email = _emailController.text.trim();
-        final code = _codeController.text.trim();
-
-        if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AuthRecoveryThreeScreen(
-                email: email,
-                resetToken: code,
-              ),
+      final email = _emailController.text.trim();
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => AuthRecoveryThreeScreen(
+              email: email,
+              resetToken: code,
             ),
-          );
-        }
-      } else {
-        final errorData = json.decode(response.body);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorData['error'] ?? 'Неверный код подтверждения'),
-              backgroundColor: AuthConstants.errorColor,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-        }
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        final errorMessage = e is ApiException 
-            ? e.message 
-            : 'Ошибка подключения. Проверьте интернет и попробуйте снова.';
+        String errorMessage;
+        if (e is ApiException) {
+          // Улучшенные сообщения об ошибках
+          if (e.message.toLowerCase().contains('неверный') || 
+              e.message.toLowerCase().contains('invalid') ||
+              e.message.toLowerCase().contains('код')) {
+            errorMessage = 'Неверный код подтверждения. Проверьте код и попробуйте снова.';
+          } else if (e.message.toLowerCase().contains('истек') || 
+                     e.message.toLowerCase().contains('expired')) {
+            errorMessage = 'Код подтверждения истек. Запросите новый код.';
+          } else {
+            errorMessage = e.message;
+          }
+        } else {
+          errorMessage = 'Ошибка подключения. Проверьте интернет и попробуйте снова.';
+        }
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: AuthConstants.errorColor,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        AppSnackBar.showError(context, errorMessage);
       }
     } finally {
       if (mounted) {
@@ -120,10 +110,71 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
     }
   }
 
+  /// Отправка кода повторно
+  Future<void> _handleResendCode() async {
+    if (_isResendingCode || _resendTimerSeconds > 0) {
+      return;
+    }
+
+    setState(() {
+      _isResendingCode = true;
+    });
+
+    try {
+      final email = _emailController.text.trim();
+      await ApiService.forgotPassword(email);
+
+      if (mounted) {
+        AppSnackBar.showSuccess(context, 'Код подтверждения отправлен повторно');
+        
+        // Запускаем таймер обратного отсчета
+        _startResendTimer();
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e is ApiException 
+            ? e.message 
+            : 'Не удалось отправить код. Попробуйте снова.';
+        
+        AppSnackBar.showError(context, errorMessage);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResendingCode = false;
+        });
+      }
+    }
+  }
+
+  /// Запуск таймера обратного отсчета для повторной отправки
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() {
+      _resendTimerSeconds = 60;
+    });
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_resendTimerSeconds > 0) {
+            _resendTimerSeconds--;
+          } else {
+            timer.cancel();
+          }
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _emailController.text = widget.email;
+    // Запускаем таймер сразу при открытии экрана
+    _startResendTimer();
     // Автофокус на поле кода после загрузки
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -134,6 +185,7 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _emailController.dispose();
     _codeController.dispose();
     _emailFocusNode.dispose();
@@ -148,7 +200,7 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
       body: SafeArea(
         child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(14.0),
+          padding: EdgeInsets.all(AuthConstants.paddingHorizontal),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -189,10 +241,8 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       onPressed: () {
-                        // Навигация на изменение почты
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const AuthRecoveryOneScreen()),
-                        );
+                        // Навигация на изменение почты (pop к первому экрану)
+                        Navigator.of(context).pop();
                       },
                       child: Text(
                         'Изменить почту',
@@ -220,6 +270,37 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
                         }
                       },
                     ),
+                    const SizedBox(height: 12), // 12px по макету
+                    // Кнопка повторной отправки кода или таймер
+                    if (_resendTimerSeconds > 0)
+                      Center(
+                        child: Text(
+                          'Отправить код повторно можно через $_resendTimerSeconds сек.',
+                          style: AppTextStyles.secondary(
+                            color: AppDesignSystem.textColorSecondary.withValues(alpha: 0.6),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      Center(
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: _isResendingCode ? null : _handleResendCode,
+                          child: Text(
+                            _isResendingCode ? 'Отправка...' : 'Отправить код повторно',
+                            style: AppTextStyles.secondary(
+                              color: _isResendingCode 
+                                  ? AppDesignSystem.textColorSecondary.withValues(alpha: 0.5)
+                                  : AuthConstants.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 12), // 12px по макету
                     // Вспомнили пароль
                     SizedBox(

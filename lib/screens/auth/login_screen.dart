@@ -12,14 +12,14 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 
-class AuthAuthorizationScreen extends StatefulWidget {
-  const AuthAuthorizationScreen({super.key});
+class AuthLoginScreen extends StatefulWidget {
+  const AuthLoginScreen({super.key});
 
   @override
-  State<AuthAuthorizationScreen> createState() => _AuthLoginScreenState();
+  State<AuthLoginScreen> createState() => _AuthLoginScreenState();
 }
 
-class _AuthLoginScreenState extends State<AuthAuthorizationScreen> {
+class _AuthLoginScreenState extends State<AuthLoginScreen> {
   bool isLoading = false;
   bool _autoValidate = false;
 
@@ -60,15 +60,19 @@ class _AuthLoginScreenState extends State<AuthAuthorizationScreen> {
 
   // Используем AuthValidator для валидации
   String? _validateEmail(String? value) {
+    // Для пустых полей во время ввода не показываем ошибку
+    // Ошибка появится только при потере фокуса или при попытке отправить форму
     if (value == null || value.isEmpty) {
-      return 'Email не может быть пустым';
+      return _autoValidate ? 'Email не может быть пустым' : null;
     }
     return AuthValidator.validateEmail(value);
   }
 
   String? _validatePassword(String? value) {
+    // Для пустых полей во время ввода не показываем ошибку
+    // Ошибка появится только при потере фокуса или при попытке отправить форму
     if (value == null || value.isEmpty) {
-      return 'Пароль не может быть пустым';
+      return _autoValidate ? 'Пароль не может быть пустым' : null;
     }
     return AuthValidator.validatePassword(value, minLength: AuthConstants.minPasswordLength);
   }

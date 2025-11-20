@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/auth_constants.dart';
-import '../../../config/app_config.dart';
 import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
+import '../../../services/api_service.dart';
+import '../../../core/widgets/app_snackbar.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_2.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-
 import 'login_screen.dart';
 
 class AuthRecoveryOneScreen extends StatefulWidget {
@@ -50,35 +48,15 @@ class _AuthRecoveryOneScreenState extends State<AuthRecoveryOneScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/auth/forgot-password'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': _emailController.text.trim(),
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final email = _emailController.text.trim();
+      await ApiService.forgotPassword(email);
 
-      if (response.statusCode == 200) {
-        final email = _emailController.text.trim();
-        if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AuthRecoveryTwoScreen(email: email),
-            ),
-          );
-        }
-      } else {
-        final errorData = json.decode(response.body);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorData['error'] ?? 'Произошла ошибка при отправке кода'),
-              backgroundColor: AuthConstants.errorColor,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-        }
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AuthRecoveryTwoScreen(email: email),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -86,14 +64,7 @@ class _AuthRecoveryOneScreenState extends State<AuthRecoveryOneScreen> {
             ? e.message 
             : 'Ошибка подключения. Проверьте интернет и попробуйте снова.';
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: AuthConstants.errorColor,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        AppSnackBar.showError(context, errorMessage);
       }
     } finally {
       if (mounted) {
@@ -129,7 +100,7 @@ class _AuthRecoveryOneScreenState extends State<AuthRecoveryOneScreen> {
       body: SafeArea(
         child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(14.0),
+          padding: EdgeInsets.all(AuthConstants.paddingHorizontal),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -180,7 +151,7 @@ class _AuthRecoveryOneScreenState extends State<AuthRecoveryOneScreen> {
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Убираем дополнительные отступы
                             ),
                           onPressed: () {
-                            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthAuthorizationScreen()));
+                            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLoginScreen()));
                           },
                             child: Text(
                             'Вернуться',

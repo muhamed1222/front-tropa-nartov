@@ -28,7 +28,7 @@ class _MountainSplashScreenState extends State<MountainSplashScreen> {
         context,
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) => 
-            const AuthAuthorizationScreen(),
+            const AuthLoginScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             const curve = Curves.easeInOut;
 

@@ -140,7 +140,7 @@ class _FavoriteWelcomeScreenState extends State<FavoriteWelcomeScreen> {
                         height: 51,
                         child: TextButton(
                           onPressed: () {
-                            _replaceWithFade(context, const AuthAuthorizationScreen());
+                            _replaceWithFade(context, const AuthLoginScreen());
                           },
                           style: TextButton.styleFrom(
                             backgroundColor: AppDesignSystem.backgroundColorSecondary,

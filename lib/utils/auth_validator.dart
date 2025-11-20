@@ -5,12 +5,12 @@ class AuthValidator {
   /// Возвращает null если валидация успешна, иначе возвращает сообщение об ошибке
   static String? validateEmail(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Ошибка: неверный формат email адреса';
+      return 'Неверный формат email адреса';
     }
     
     final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
     if (!emailRegex.hasMatch(value.trim())) {
-      return 'Ошибка: неверный формат email адреса';
+      return 'Неверный формат email адреса';
     }
     
     return null;
@@ -22,7 +22,7 @@ class AuthValidator {
   /// [minLength] - минимальная длина пароля (по умолчанию 8)
   static String? validatePassword(String? value, {int minLength = 8}) {
     if (value == null || value.isEmpty) {
-      return 'Ошибка: неверный формат пароля';
+      return null; // Не показываем ошибку для пустого поля - это нормально во время ввода
     }
     
     if (value.length < minLength) {
@@ -38,7 +38,7 @@ class AuthValidator {
   /// [minLength] - минимальная длина имени (по умолчанию 2)
   static String? validateName(String? value, {int minLength = 2}) {
     if (value == null || value.isEmpty) {
-      return 'Ошибка: неверный формат имени';
+      return 'Неверный формат имени';
     }
     
     if (value.trim().length < minLength) {
@@ -54,7 +54,7 @@ class AuthValidator {
   /// [requiredLength] - требуемая длина кода (по умолчанию 6)
   static String? validateCode(String? value, {int requiredLength = 6}) {
     if (value == null || value.isEmpty) {
-      return 'Ошибка: неверный формат кода подтверждения';
+      return 'Неверный формат кода подтверждения';
     }
     
     if (value.length != requiredLength) {
@@ -74,11 +74,11 @@ class AuthValidator {
   /// Возвращает null если валидация успешна, иначе возвращает сообщение об ошибке
   static String? validateConfirmPassword(String? password, String? confirmPassword) {
     if (confirmPassword == null || confirmPassword.isEmpty) {
-      return 'Ошибка: неверный формат повторного пароля';
+      return 'Неверный формат повторного пароля';
     }
     
     if (password != confirmPassword) {
-      return 'Ошибка: неверный формат повторного пароля';
+      return 'Пароли не совпадают';
     }
     
     return null;

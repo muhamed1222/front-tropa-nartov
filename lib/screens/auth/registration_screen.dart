@@ -95,29 +95,33 @@ class _AuthRegistrationScreenState extends State<AuthRegistrationScreen> {
 
   // Используем AuthValidator для валидации
   String? _validateName(String? value) {
+    // Для пустых полей во время ввода не показываем ошибку
     if (value == null || value.isEmpty) {
-      return 'Имя не может быть пустым';
+      return _autoValidate ? 'Имя не может быть пустым' : null;
     }
     return AuthValidator.validateName(value, minLength: 2);
   }
 
   String? _validateEmail(String? value) {
+    // Для пустых полей во время ввода не показываем ошибку
     if (value == null || value.isEmpty) {
-      return 'Email не может быть пустым';
+      return _autoValidate ? 'Email не может быть пустым' : null;
     }
     return AuthValidator.validateEmail(value);
   }
 
   String? _validatePassword(String? value) {
+    // Для пустых полей во время ввода не показываем ошибку
     if (value == null || value.isEmpty) {
-      return 'Пароль не может быть пустым';
+      return _autoValidate ? 'Пароль не может быть пустым' : null;
     }
     return AuthValidator.validatePassword(value, minLength: AuthConstants.minPasswordLength);
   }
 
   String? _validateConfirmPassword(String? value) {
+    // Для пустых полей во время ввода не показываем ошибку
     if (value == null || value.isEmpty) {
-      return 'Подтвердите пароль';
+      return _autoValidate ? 'Подтвердите пароль' : null;
     }
     if (value != _passwordController.text) {
       return 'Пароли не совпадают';
@@ -191,7 +195,7 @@ class _AuthRegistrationScreenState extends State<AuthRegistrationScreen> {
           
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const AuthAuthorizationScreen()),
+            MaterialPageRoute(builder: (_) => const AuthLoginScreen()),
           );
         }
       }
@@ -224,7 +228,7 @@ class _AuthRegistrationScreenState extends State<AuthRegistrationScreen> {
   void _handleLogin() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const AuthAuthorizationScreen()),
+      MaterialPageRoute(builder: (_) => const AuthLoginScreen()),
     );
   }
 

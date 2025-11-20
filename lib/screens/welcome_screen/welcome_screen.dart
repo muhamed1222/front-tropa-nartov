@@ -271,7 +271,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
                         height: 51,
                         child: TextButton(
                           onPressed: () {
-                            _replaceWithFade(context, const AuthAuthorizationScreen());
+                            _replaceWithFade(context, const AuthLoginScreen());
                           },
                           style: TextButton.styleFrom(
                             backgroundColor: AppDesignSystem.backgroundColorSecondary,
