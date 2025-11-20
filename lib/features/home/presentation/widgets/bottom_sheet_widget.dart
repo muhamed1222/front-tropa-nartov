@@ -3,14 +3,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/di/injection_container.dart' as di;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tropanartov/features/places/presentation/widgets/places_main_widget.dart';
 
 import '../../../../core/helpers/open_bottom_sheet.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../favourites/presentation/widgets/favourites_widget.dart';
+import '../../../favourites/presentation/bloc/favourites_bloc.dart';
 import '../../../respublic/presentation/widgets/respublic_about_widget.dart';
 import '../../../routes/widgets/routes_main_widget.dart';
+import '../../../routes/presentation/bloc/routes_bloc.dart';
 
 class HomeBottomSheetWidget extends StatefulWidget {
   const HomeBottomSheetWidget({
@@ -65,10 +68,10 @@ class _HomeBottomSheetWidgetState extends State<HomeBottomSheetWidget> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFFC0C0C0).withOpacity(0.10),
+        color: Color(0xFFC0C0C0).withValues(alpha: 0.10),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFC0C0C0).withOpacity(0.10),
+            color: const Color(0xFFC0C0C0).withValues(alpha: 0.10),
             offset: const Offset(0, -2),
             blurRadius: 20,
             spreadRadius: 0,
@@ -148,7 +151,19 @@ class MenuItemWidget extends StatelessWidget {
             return;
           }
           if (item['route'] == '/routes') {
-            openBottomSheet(context, (c) => RoutesMainWidget(scrollController: c));
+            openBottomSheet(
+              context,
+              (ScrollController scrollController) {
+                return BlocProvider(
+                  create: (BuildContext context) {
+                    final bloc = di.sl<RoutesBloc>();
+                    bloc.add(const LoadRoutes(forceRefresh: false)); // Используем кеш при первом открытии
+                    return bloc;
+                  },
+                  child: RoutesMainWidget(scrollController: scrollController),
+                );
+              },
+            );
             return;
           }
           if (item['route'] == '/about') {
@@ -212,10 +227,23 @@ class FavoritesWidget extends StatelessWidget {
             // Если HomeBloc недоступен, ничего не делаем
           }
           
-          openBottomSheet(context, (c) => FavouritesWidget(
-            scrollController: c,
-            homeBloc: homeBloc, // Передаем HomeBloc явно
-          ));
+          openBottomSheet(
+            context,
+            (ScrollController scrollController) {
+              return BlocProvider(
+                create: (BuildContext context) {
+                  final bloc = di.sl<FavouritesBloc>();
+                  bloc.add(const LoadFavoritePlaces(forceRefresh: false)); // Используем кеш при первом открытии
+                  bloc.add(const LoadFavoriteRoutes(forceRefresh: false));
+                  return bloc;
+                },
+                child: FavouritesWidget(
+                  scrollController: scrollController,
+                  homeBloc: homeBloc, // Передаем HomeBloc явно
+                ),
+              );
+            },
+          );
         },
         customBorder: CircleBorder(),
         child: SizedBox(
@@ -223,7 +251,7 @@ class FavoritesWidget extends StatelessWidget {
           height: 44,
           child: Container(
             decoration: BoxDecoration(
-              color: Color(0xFF24A79C).withOpacity(0.1),
+              color: Color(0xFF24A79C).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Center(

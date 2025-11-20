@@ -145,7 +145,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
                             end: Alignment.topCenter,
                             colors: [
                               Colors.white,
-                              Colors.white.withOpacity(0.5),
+                              Colors.white.withValues(alpha: 0.5),
                               Colors.transparent,
                             ],
                           ),

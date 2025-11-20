@@ -364,7 +364,7 @@ class _FilterWidgetState extends State<FilterWidget> {
                     color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFC0C0C0).withOpacity(0.10),
+                        color: const Color(0xFFC0C0C0).withValues(alpha: 0.10),
                         offset: const Offset(0, -2),
                         blurRadius: 20,
                         spreadRadius: 0,

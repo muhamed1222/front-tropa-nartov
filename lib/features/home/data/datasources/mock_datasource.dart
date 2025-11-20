@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:tropanartov/features/home/domain/entities/place.dart';
 import 'package:tropanartov/shared/domain/entities/review.dart';
 import 'package:tropanartov/config/app_config.dart';
+import 'package:tropanartov/core/utils/logger.dart';
 
 // Mock-источник. Здесь mockPoints, но как Place.
 class MockDatasource {
@@ -13,31 +14,31 @@ class MockDatasource {
     try {
       final baseUrl = AppConfig.baseUrl;
       final url = '$baseUrl/places';
-      debugPrint('📡 Запрос мест с сервера: $url');
+      AppLogger.debug('📡 Запрос мест с сервера: $url');
       
       final response = await http.get(
         Uri.parse(url),
       );
 
-      debugPrint('📡 Ответ бекенда: статус ${response.statusCode}');
+      AppLogger.debug('📡 Ответ бекенда: статус ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final responseBody = response.body;
-        debugPrint('📡 Размер ответа: ${responseBody.length} байт');
+        AppLogger.debug('📡 Размер ответа: ${responseBody.length} байт');
 
         final List<dynamic> data = json.decode(responseBody);
-        debugPrint('📡 Получено мест из JSON: ${data.length}');
+        AppLogger.debug('📡 Получено мест из JSON: ${data.length}');
 
         if (data.isEmpty) {
-          debugPrint('⚠️ Сервер вернул пустой список мест');
+          AppLogger.debug('⚠️ Сервер вернул пустой список мест');
           return [];
         }
 
         // Проверяем структуру первого элемента
         if (data.isNotEmpty) {
           final firstItem = data.first;
-          debugPrint('📡 Первый элемент содержит ключи: ${firstItem.keys.toList()}');
-          debugPrint('📡 Первый элемент - latitude: ${firstItem['latitude']}, longitude: ${firstItem['longitude']}');
+          AppLogger.debug('📡 Первый элемент содержит ключи: ${firstItem.keys.toList()}');
+          AppLogger.debug('📡 Первый элемент - latitude: ${firstItem['latitude']}, longitude: ${firstItem['longitude']}');
         }
 
         final places = <Place>[];
@@ -53,23 +54,23 @@ class MockDatasource {
                 place.latitude.abs() <= 90.0 && place.longitude.abs() <= 180.0) {
               validCoordinatesCount++;
             } else {
-              debugPrint('⚠️ Место "${place.name}" (ID: ${place.id}) имеет невалидные координаты: lat=${place.latitude}, lng=${place.longitude}');
+              AppLogger.debug('⚠️ Место "${place.name}" (ID: ${place.id}) имеет невалидные координаты: lat=${place.latitude}, lng=${place.longitude}');
             }
           } catch (e) {
-            debugPrint('❌ Ошибка парсинга места $i: $e');
+            AppLogger.debug('❌ Ошибка парсинга места $i: $e');
           }
         }
 
-        debugPrint('✅ Успешно загружено мест: ${places.length}, с валидными координатами: $validCoordinatesCount');
+        AppLogger.debug('✅ Успешно загружено мест: ${places.length}, с валидными координатами: $validCoordinatesCount');
 
         return places;
       } else {
-        debugPrint('❌ Ошибка загрузки мест: статус ${response.statusCode}');
+        AppLogger.debug('❌ Ошибка загрузки мест: статус ${response.statusCode}');
         throw Exception('Failed to load places from backend: ${response.statusCode}');
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ Ошибка загрузки мест с бекенда: $e');
-      debugPrint('❌ Stack trace: $stackTrace');
+      AppLogger.debug('❌ Ошибка загрузки мест с бекенда: $e');
+      AppLogger.debug('❌ Stack trace: $stackTrace');
       return [];
     }
   }

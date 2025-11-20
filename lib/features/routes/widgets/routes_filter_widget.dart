@@ -287,7 +287,7 @@ class _RoutesFilterWidgetState extends State<RoutesFilterWidget> {
                                             Text(
                                               'от ',
                                               style: TextStyle(
-                                                color: const Color(0xFF000000).withOpacity(0.5),
+                                                color: const Color(0xFF000000).withValues(alpha: 0.5),
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w400,
                                                 height: 1.20,
@@ -350,7 +350,7 @@ class _RoutesFilterWidgetState extends State<RoutesFilterWidget> {
                                             Text(
                                               'до ',
                                               style: TextStyle(
-                                                color: const Color(0xFF000000).withOpacity(0.5),
+                                                color: const Color(0xFF000000).withValues(alpha: 0.5),
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w400,
                                                 height: 1.20,
@@ -482,7 +482,7 @@ class _RoutesFilterWidgetState extends State<RoutesFilterWidget> {
                     color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFC0C0C0).withOpacity(0.10),
+                        color: const Color(0xFFC0C0C0).withValues(alpha: 0.10),
                         offset: const Offset(0, -2),
                         blurRadius: 20,
                         spreadRadius: 0,

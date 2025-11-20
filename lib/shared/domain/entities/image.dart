@@ -1,3 +1,5 @@
+import '../../../core/utils/logger.dart';
+
 class Image {
   final String id;
   final String url;
@@ -12,18 +14,18 @@ class Image {
   });
 
   factory Image.fromJson(Map<String, dynamic> json) {
-    print('=== IMAGE.FROMJSON DEBUG ===');
-    print('Image JSON keys: ${json.keys.toList()}');
-    print('URL field value: ${json['URL']}');
-    print('url field value: ${json['url']}');
+    AppLogger.debug('=== IMAGE.FROMJSON DEBUG ===');
+    AppLogger.debug('Image JSON keys: ${json.keys.toList()}');
+    AppLogger.debug('URL field value: ${json['URL']}');
+    AppLogger.debug('url field value: ${json['url']}');
 
     // Пробуем разные варианты имени поля
     final String imageUrl = json['URL']?.toString() ??
         json['url']?.toString() ??
         '';
 
-    print('Selected URL: "$imageUrl"');
-    print('==========================');
+    AppLogger.debug('Selected URL: "$imageUrl"');
+    AppLogger.debug('==========================');
 
     return Image(
       id: json['ID']?.toString() ?? json['id']?.toString() ?? '',

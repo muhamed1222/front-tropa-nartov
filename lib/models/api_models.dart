@@ -5,13 +5,19 @@ import 'package:tropanartov/shared/domain/entities/review.dart' as shared;
 
 class LoginResponse {
   final String token;
+  final String? refreshToken; // Опциональный refresh token
   final User user;
 
-  LoginResponse({required this.token, required this.user});
+  LoginResponse({
+    required this.token,
+    this.refreshToken,
+    required this.user,
+  });
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
     return LoginResponse(
-      token: json['token'],
+      token: json['token'] ?? json['access_token'] ?? '',
+      refreshToken: json['refresh_token'] as String?,
       user: User.fromJson(json['user']),
     );
   }
@@ -142,10 +148,6 @@ class AppRoute {
   });
 
   factory AppRoute.fromJson(Map<String, dynamic> json) {
-    // print('=== ROUTE.FROMJSON DEBUG ===');
-    // print('Route JSON keys: ${json.keys.toList()}');
-    // print('Route ID: ${json['id']}, Name: ${json['name']}');
-    // print('============================');
 
     return AppRoute(
       id: _parseInt(json['id']),

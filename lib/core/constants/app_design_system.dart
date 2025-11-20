@@ -37,8 +37,8 @@ class AppDesignSystem {
 
   /// Цвета текста
   static const Color textColorPrimary = Color(0xFF000000);
-  static const Color textColorSecondary = Color(0x99000000); // black.withOpacity(0.60)
-  static const Color textColorTertiary = Color(0x66000000);  // black.withOpacity(0.40)
+  static const Color textColorSecondary = Color(0x99000000); // black.withValues(alpha: 0.60)
+  static const Color textColorTertiary = Color(0x66000000);  // black.withValues(alpha: 0.40)
   static const Color textColorHint = Color(0x66000000);
   static const Color textColorError = Color(0xFFFF4444);
   static const Color textColorWhite = Color(0xFFFFFFFF);
@@ -219,5 +219,11 @@ class AppDesignSystem {
 
   /// Длительность кэширования данных профиля
   static const Duration profileCacheDuration = Duration(minutes: 5);
+
+  /// Длительность кэширования маршрутов
+  static const Duration routesCacheDuration = Duration(minutes: 5);
+
+  /// Длительность кэширования избранного
+  static const Duration favoritesCacheDuration = Duration(minutes: 5);
 }
 

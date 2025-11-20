@@ -9,7 +9,7 @@ import '../../../../core/helpers/open_bottom_sheet.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../widgets/settings_widget.dart';
 import '../widgets/about_project_widget.dart';
-import 'widgets_showcase_page.dart';
+// import 'widgets_showcase_page.dart'; // Скрыто для разработки
 
 class MenuPage extends StatelessWidget {
   const MenuPage({super.key});
@@ -165,20 +165,20 @@ class MenuPage extends StatelessWidget {
                     text: 'Настройки',
                     onTap: () => openBottomSheet(context, (c) => SettingsWidget()),
                   ),
-                  SizedBox(height: MenuConstants.spacingSmall),
+                  // SizedBox(height: MenuConstants.spacingSmall),
 
-                  // Кнопка "Виджеты"
-                  _MenuButton(
-                    iconPath: 'assets/elements.svg',
-                    text: 'Виджеты',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const WidgetsShowcasePage(),
-                        ),
-                      );
-                    },
-                  ),
+                  // // Кнопка "Виджеты"
+                  // _MenuButton(
+                  //   iconPath: 'assets/elements.svg',
+                  //   text: 'Виджеты',
+                  //   onTap: () {
+                  //     Navigator.of(context).push(
+                  //       MaterialPageRoute(
+                  //         builder: (context) => const WidgetsShowcasePage(),
+                  //       ),
+                  //     );
+                  //   },
+                  // ),
                 ],
               ),
             ),

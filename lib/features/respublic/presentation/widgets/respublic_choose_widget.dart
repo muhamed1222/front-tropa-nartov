@@ -133,77 +133,77 @@ class _ChooseRespublicWidgetState extends State<ChooseRespublicWidget> {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: Column(
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Заголовок с единым стилем
-        Container(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Индикатор перетаскивания
-              Center(
-                child: DragIndicator(
-                  color: AppDesignSystem.handleBarColor,
-                  padding: EdgeInsets.zero,
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Заголовок с единым стилем
+          Container(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Индикатор перетаскивания
+                Center(
+                  child: DragIndicator(
+                    color: AppDesignSystem.handleBarColor,
+                    padding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
-              // Заголовок с padding vertical 16px
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Center(
-                  child: Text(
-                    'Выбор республики',
-                    style: GoogleFonts.inter(
-                      color: AppDesignSystem.textColorPrimary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      height: 1.20,
+                // Заголовок с padding vertical 12px (уменьшено с 16px)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: Text(
+                      'Выбор республики',
+                      style: GoogleFonts.inter(
+                        color: AppDesignSystem.textColorPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.20,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+          const SizedBox(height: 8),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
                 : RepaintBoundary(
                     child: GridView.builder(
-            controller: widget.scrollController,
-            physics: const BouncingScrollPhysics(), // Включаем скроллинг
-            padding: EdgeInsets.zero,
-            addAutomaticKeepAlives: false, // Отключаем автоматическое сохранение состояния
-            addRepaintBoundaries: true, // Добавляем границы перерисовки
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3, // Всегда 3 колонки
-              crossAxisSpacing: 10.0,
-              mainAxisSpacing: 10.0,
-              childAspectRatio: 1.0, // Квадратные блоки
-            ),
-            itemCount: _republics.length,
-            itemBuilder: (context, index) {
-              final republic = _republics[index];
-              final isSelected = _selectedRepublic == republic.name;
+                      controller: widget.scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      addAutomaticKeepAlives: false,
+                      addRepaintBoundaries: true,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 10.0,
+                        mainAxisSpacing: 10.0,
+                        childAspectRatio: 1.0,
+                      ),
+                      itemCount: _republics.length,
+                      itemBuilder: (context, index) {
+                        final republic = _republics[index];
+                        final isSelected = _selectedRepublic == republic.name;
 
-              return _RepublicCard(
-                key: ValueKey(republic.name),
-                republic: republic,
-                isSelected: isSelected,
-                onTap: () => _onRepublicSelected(
-                  republic.name,
-                  republic.isAvailable,
-                ),
-                imageBuilder: _buildRepublicImage,
-              );
-            },
+                        return _RepublicCard(
+                          key: ValueKey(republic.name),
+                          republic: republic,
+                          isSelected: isSelected,
+                          onTap: () => _onRepublicSelected(
+                            republic.name,
+                            republic.isAvailable,
+                          ),
+                          imageBuilder: _buildRepublicImage,
+                        );
+                      },
+                    ),
                   ),
-                ),
           ),
           BottomActionBar(
             onCancel: _onCancel,

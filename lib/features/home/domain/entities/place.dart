@@ -41,12 +41,6 @@ class Place {
   });
 
   factory Place.fromJson(Map<String, dynamic> json) {
-    print('=== PLACE.FROMJSON DEBUG ===');
-    print('Input JSON keys: ${json.keys.toList()}');
-    print('Name: ${json['name']}');
-    print('Images field: ${json['images']}');
-    print('Images type: ${json['images']?.runtimeType}');
-
     final place = Place(
       id: _parseInt(json['id']),
       name: json['name']?.toString() ?? 'Без названия',
@@ -66,12 +60,6 @@ class Place {
       description: json['description']?.toString() ?? '',
       overview: json['overview']?.toString() ?? '',
     );
-
-    print('Final place images count: ${place.images.length}');
-    if (place.images.isNotEmpty) {
-      print('First image URL: "${place.images.first.url}"');
-    }
-    print('============================');
 
     return place;
   }
@@ -93,25 +81,12 @@ class Place {
   }
 
   static List<Image> _parseImages(dynamic images) {
-    print('=== DEBUG _parseImages ===');
-    print('Input images type: ${images.runtimeType}');
-    print('Input images value: $images');
-
     if (images is List) {
-      final parsedImages = images.map((imageJson) {
-        print('Processing image JSON: $imageJson');
-        final image = Image.fromJson(imageJson);
-        print('Parsed image URL: ${image.url}');
-        return image;
+      return images.map((imageJson) {
+        return Image.fromJson(imageJson);
       }).toList();
-
-      print('Total parsed images: ${parsedImages.length}');
-      print('========================');
-      return parsedImages;
     }
 
-    print('Images is not a List, returning empty list');
-    print('========================');
     return [];
   }
 

@@ -1,11 +1,13 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/di/injection_container.dart' as di;
 import 'package:flutter_svg/svg.dart';
 import 'package:tropanartov/screens/auth/login_screen.dart';
 import '../../../../core/helpers/open_bottom_sheet.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../favourites/presentation/widgets/favourites_widget.dart';
+import '../../../favourites/presentation/bloc/favourites_bloc.dart';
 import '../../../home/presentation/widgets/place_details_sheet_widget.dart';
 import '../../../home/domain/entities/place.dart' as home_entities;
 import '../../../../shared/domain/entities/image.dart' as shared_entities;
@@ -487,7 +489,20 @@ class _ProfilePageState extends State<ProfilePage> {
                             isRemoving: _isRemovingFavorite,
                             maxItems: _maxFavoriteItems,
                             onViewAll: () {
-                              openBottomSheet(context, (c) => FavouritesWidget(scrollController: c));
+                              openBottomSheet(
+                                context,
+                                (ScrollController scrollController) {
+                                  return BlocProvider(
+                                    create: (BuildContext context) {
+                                      final bloc = di.sl<FavouritesBloc>();
+                                      bloc.add(const LoadFavoritePlaces(forceRefresh: false)); // Используем кеш при открытии
+                                      bloc.add(const LoadFavoriteRoutes(forceRefresh: false));
+                                      return bloc;
+                                    },
+                                    child: FavouritesWidget(scrollController: scrollController),
+                                  );
+                                },
+                              );
                             },
                             onPlaceTap: _showPlaceDetails,
                             onRemove: _showDeleteDialog,
@@ -577,11 +592,8 @@ class _ConfirmationDialogWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-          child: Container(
-            color: AppDesignSystem.textColorPrimary.withValues(alpha: 0.5),
-          ),
+        Container(
+          color: Colors.black.withValues(alpha: 0.4),
         ),
         Dialog(
           backgroundColor: Colors.transparent,

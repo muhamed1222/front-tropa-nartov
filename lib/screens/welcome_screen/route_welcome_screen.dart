@@ -118,7 +118,7 @@ class _RouteWelcomeScreenState extends State<RouteWelcomeScreen> {
                   end: Alignment.topCenter,
                   colors: [
                     Colors.white,
-                    Colors.white.withOpacity(0.5),
+                    Colors.white.withValues(alpha: 0.5),
                     Colors.transparent,
                   ],
                   stops: [0.0, 0.3, 0.6],

@@ -6,6 +6,7 @@ import 'package:tropanartov/features/home/domain/entities/place.dart';
 import 'package:tropanartov/features/home/domain/usecases/get_places.dart';
 import 'package:tropanartov/features/home/domain/usecases/get_current_position.dart';
 import 'package:tropanartov/features/map/data/services/osrm_service.dart';
+import 'package:tropanartov/core/utils/logger.dart';
 
 part 'home_event.dart';
 part 'home_state.dart';
@@ -37,36 +38,35 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
     try {
       // Загружаем места
-      debugPrint('HomeBloc: Начинаю загрузку мест...');
+      AppLogger.debug('HomeBloc: Начинаю загрузку мест...');
       final places = await getPlaces.call();
-      debugPrint('HomeBloc: Загружено мест: ${places.length}');
+      AppLogger.debug('HomeBloc: Загружено мест: ${places.length}');
       
       if (places.isEmpty) {
-        debugPrint('⚠️ HomeBloc: Сервер вернул пустой список мест!');
-        debugPrint('⚠️ Проверьте, что сервер запущен и в базе данных есть места');
+        AppLogger.debug('⚠️ HomeBloc: Сервер вернул пустой список мест!');
+        AppLogger.debug('⚠️ Проверьте, что сервер запущен и в базе данных есть места');
       } else {
         final placesWithCoords = places.where((p) => 
           p.latitude != 0.0 && p.longitude != 0.0 &&
           p.latitude.abs() <= 90.0 && p.longitude.abs() <= 180.0
         ).length;
-        debugPrint('HomeBloc: Мест с валидными координатами: $placesWithCoords из ${places.length}');
+        AppLogger.debug('HomeBloc: Мест с валидными координатами: $placesWithCoords из ${places.length}');
       }
       
       // Загружаем позицию
-      debugPrint('HomeBloc: Загружаю текущую позицию...');
+      AppLogger.debug('HomeBloc: Загружаю текущую позицию...');
       final position = await getCurrentPosition.call();
       final myLocation = position != null ? LatLng(position.latitude, position.longitude) : null;
       
       if (myLocation != null) {
-        debugPrint('HomeBloc: Позиция получена: lat=${myLocation.latitude}, lng=${myLocation.longitude}');
+        AppLogger.debug('HomeBloc: Позиция получена: lat=${myLocation.latitude}, lng=${myLocation.longitude}');
       } else {
-        debugPrint('⚠️ HomeBloc: Не удалось получить позицию пользователя');
+        AppLogger.debug('⚠️ HomeBloc: Не удалось получить позицию пользователя');
       }
 
       emit(state.copyWith(places: places, myLocation: myLocation, isLoading: false));
     } catch (e, stackTrace) {
-      debugPrint('❌ HomeBloc: Ошибка загрузки данных: $e');
-      debugPrint('❌ Stack trace: $stackTrace');
+      AppLogger.error('HomeBloc: Ошибка загрузки данных', e, stackTrace);
       emit(state.copyWith(error: 'Ошибка загрузки данных: $e', isLoading: false));
     }
   }

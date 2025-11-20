@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import '../constants/app_design_system.dart';
+import '../utils/logger.dart';
 
 /// Метка на карте
 /// Используется для отображения мест на карте
@@ -21,9 +22,10 @@ class MapMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ДОБАВЬТЕ ЭТОТ ОТЛАДОЧНЫЙ ВЫВОД:
-    debugPrint('MapMarker: imageUrl = $imageUrl, hasImage = ${image != null}');
+    AppLogger.debug('MapMarker: imageUrl = $imageUrl, hasImage = ${image != null}');
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque, // Важно: делаем маркер полностью кликабельным
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -48,7 +50,7 @@ class MapMarker extends StatelessWidget {
                     loadingBuilder: (context, child, loadingProgress) {
                       // ДОБАВЬТЕ ДЛЯ ОТСЛЕЖИВАНИЯ ЗАГРУЗКИ:
                       if (loadingProgress == null) return child;
-                      debugPrint('Image loading: $loadingProgress');
+                      AppLogger.debug('Image loading: $loadingProgress');
                       return Container(
                         color: Colors.grey[300],
                         child: const CircularProgressIndicator(),
@@ -56,8 +58,8 @@ class MapMarker extends StatelessWidget {
                     },
                     errorBuilder: (context, error, stackTrace) {
                       // ЭТОТ БЛОК ВЫПОЛНЯЕТСЯ ПРИ ОШИБКЕ:
-                      debugPrint('Image load ERROR: $error');
-                      debugPrint('Image URL: $imageUrl');
+                      AppLogger.debug('Image load ERROR: $error');
+                      AppLogger.debug('Image URL: $imageUrl');
                       return Container(
                         color: Colors.white,
                         child: const Icon(

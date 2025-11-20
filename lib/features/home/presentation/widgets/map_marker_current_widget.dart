@@ -48,7 +48,7 @@ class CurrentUserPositionWidgetState extends State<CurrentUserPositionWidget> wi
             Container(
               width: 30.0 * _animation.value,
               height: 30.0 * _animation.value,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: primaryColor.withOpacity(0.3)),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: primaryColor.withValues(alpha: 0.3)),
             ),
 
             // Основная метка (не пульсирует)
@@ -59,7 +59,7 @@ class CurrentUserPositionWidgetState extends State<CurrentUserPositionWidget> wi
                 color: primaryColor,
                 shape: BoxShape.circle,
 
-                boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.5), blurRadius: 6.0, offset: Offset(0, 2))],
+                boxShadow: [BoxShadow(color: primaryColor.withValues(alpha: 0.5), blurRadius: 6.0, offset: Offset(0, 2))],
               ),
             ),
           ],

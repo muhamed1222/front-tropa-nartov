@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/menu_constants.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../../services/preferences_service.dart';
 
 class SettingsWidget extends StatefulWidget {
   const SettingsWidget({super.key});
@@ -46,7 +46,7 @@ class _SettingsWidgetState extends State<SettingsWidget> {
 
   Future<void> _loadSettings() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = PreferencesService.instance;
       setState(() {
         _pushNotifications = prefs.getBool(MenuConstants.pushNotificationsKey) ?? true;
         _isLoadingSettings = false;
@@ -66,7 +66,7 @@ class _SettingsWidgetState extends State<SettingsWidget> {
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = PreferencesService.instance;
       await prefs.setBool(MenuConstants.pushNotificationsKey, value);
     } catch (e) {
       // В случае ошибки возвращаем предыдущее значение

@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tropanartov/core/di/injection_container.dart' as di;
+import 'package:tropanartov/config/app_config.dart';
 import 'package:tropanartov/features/home/presentation/pages/home_page.dart';
 import 'package:tropanartov/screens/welcome_screen/welcome_screen.dart';
 import 'package:tropanartov/services/auth_service.dart';
+import 'package:tropanartov/services/preferences_service.dart';
 import 'core/constants/app_text_styles.dart';
 import 'core/constants/app_design_system.dart';
 
@@ -18,6 +20,12 @@ void main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+  
+  // Инициализируем конфигурацию окружения
+  AppConfig.init();
+  
+  // Инициализируем PreferencesService перед DI
+  await PreferencesService.init();
   
   await di.init();
   runApp(const MainApp());
@@ -93,27 +101,39 @@ class _SplashScreenState extends State<SplashScreen> {
     _checkAuthStatus();
   }
 
-  Future<void> _checkAuthStatus() async {
-    // Даем время для показа splash screen
-    await Future.delayed(const Duration(milliseconds: 1500));
+      Future<void> _checkAuthStatus() async {
+        // Даем время для показа splash screen
+        await Future.delayed(const Duration(milliseconds: 1500));
 
-    final isLoggedIn = await AuthService.isLoggedIn();
-
-    if (mounted) {
-      if (isLoggedIn) {
-        // Пользователь уже авторизован - идем на главную
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      } else {
-        // Пользователь не авторизован - показываем onboarding
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-
-        );
+        // Проверяем наличие токена и его валидность
+        final isLoggedIn = await AuthService.isLoggedIn();
+        
+        if (isLoggedIn) {
+          // Если токен есть, проверяем его валидность
+          final isTokenValid = await AuthService.isTokenValid();
+          
+          if (mounted) {
+            if (isTokenValid) {
+              // Токен валиден - идем на главную
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const HomePage()),
+              );
+            } else {
+              // Токен невалиден - показываем onboarding
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+              );
+            }
+          }
+        } else {
+          // Нет токена - показываем onboarding
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+            );
+          }
+        }
       }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

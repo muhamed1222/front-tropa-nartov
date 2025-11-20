@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/home/presentation/pages/home_page.dart';
 import 'login_screen.dart';
-import '../../../services/api_service.dart';
+import '../../../services/api_service_dio.dart';
 import '../../../services/auth_service.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_design_system.dart';
@@ -14,6 +14,7 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
+import '../../../core/di/injection_container.dart';
 
 class AuthRegistrationScreen extends StatefulWidget {
   const AuthRegistrationScreen({super.key});
@@ -160,15 +161,20 @@ class _AuthRegistrationScreenState extends State<AuthRegistrationScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
-      // Регистрация
-      await ApiService.register(name, email, password);
+      // Регистрация через новый ApiServiceDio
+      final apiService = sl<ApiServiceDio>();
+      await apiService.register(name, email, password);
 
       // Автоматический вход после регистрации
       try {
-        final loginResponse = await ApiService.login(email, password);
+        final apiService = sl<ApiServiceDio>();
+        final loginResponse = await apiService.login(email, password);
 
-        // Сохраняем токен и пользователя
+        // Сохраняем токены и пользователя
         await AuthService.saveToken(loginResponse.token);
+        if (loginResponse.refreshToken != null) {
+          await AuthService.saveRefreshToken(loginResponse.refreshToken!);
+        }
         await AuthService.saveUser(loginResponse.user);
         await AuthService.saveLastEmail(email);
 

@@ -7,19 +7,16 @@ import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tropanartov/models/api_models.dart' hide Image;
-import 'package:tropanartov/services/api_service.dart';
-import 'package:tropanartov/services/auth_service.dart';
 import 'package:tropanartov/utils/smooth_border_radius.dart';
-import 'package:tropanartov/features/home/domain/entities/place.dart' as home_entities;
 import 'package:tropanartov/features/home/presentation/widgets/place_details_sheet_widget.dart';
-import 'package:tropanartov/shared/domain/entities/image.dart' as shared_entities;
-import 'package:tropanartov/shared/domain/entities/review.dart' as shared_entities;
+import 'package:tropanartov/features/places/data/mappers/place_mapper.dart';
+import '../bloc/favourites_bloc.dart';
 import 'route_details_sheet_simple.dart';
 import '../../../../core/widgets/widgets.dart';
 
 class FavouritesWidget extends StatefulWidget {
   final ScrollController scrollController;
-  final HomeBloc? homeBloc; // Добавляем параметр
+  final HomeBloc? homeBloc;
 
   const FavouritesWidget({
     super.key,
@@ -32,11 +29,6 @@ class FavouritesWidget extends StatefulWidget {
 }
 
 class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBindingObserver {
-  int _selectedButtonIndex = 0; // 0 - места, 1 - маршруты
-  List<Place> _favoritePlaces = [];
-  List<AppRoute> _favoriteRoutes = [];
-  bool _isLoading = false;
-
   // Контроллер для скролла карточек
   late ScrollController _cardsScrollController;
 
@@ -45,8 +37,8 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     super.initState();
     _cardsScrollController = widget.scrollController;
     WidgetsBinding.instance.addObserver(this);
-    _loadFavoritePlaces();
-    _loadFavoriteRoutes();
+    
+    // Данные загружаются через BLoC при создании BlocProvider
 
     // Устанавливаем светлый status bar при открытии
     SystemChrome.setSystemUIOverlayStyle(
@@ -59,19 +51,19 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // initState() уже вызывает _loadFavoritePlaces() при создании виджета
-    // Добавление ключа в openBottomSheet гарантирует пересоздание виджета каждый раз
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     // Обновляем список при возвращении приложения в активное состояние
-    if (state == AppLifecycleState.resumed) {
-      _loadFavoritePlaces();
-      _loadFavoriteRoutes();
+    if (state == AppLifecycleState.resumed && mounted) {
+      final bloc = context.read<FavouritesBloc>();
+      final currentState = bloc.state;
+      if (currentState is FavouritesLoaded) {
+        if (currentState.selectedTabIndex == 0) {
+          bloc.add(const LoadFavoritePlaces(forceRefresh: false)); // Используем кеш при инициализации
+        } else {
+          bloc.add(const LoadFavoriteRoutes(forceRefresh: false));
+        }
+      }
     }
   }
 
@@ -91,117 +83,9 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     super.dispose();
   }
 
-  // Универсальный метод для загрузки избранного
-  Future<void> _loadFavorites({required bool isPlaces}) async {
-    final token = await AuthService.getToken();
-    if (token == null) {
-      if (mounted && isPlaces) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Необходима авторизация для просмотра избранного'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
-    }
-
-    final expectedIndex = isPlaces ? 0 : 1;
-    if (mounted && _selectedButtonIndex == expectedIndex) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
-
-    try {
-      if (isPlaces) {
-        final places = await ApiService.getFavoritePlaces(token);
-        if (mounted) {
-          setState(() {
-            _favoritePlaces = places;
-          });
-        }
-      } else {
-        final routes = await ApiService.getFavoriteRoutes(token);
-        if (mounted) {
-          setState(() {
-            _favoriteRoutes = routes;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted && _selectedButtonIndex == expectedIndex) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isPlaces
-                  ? 'Не удалось загрузить избранные места. Проверьте подключение к интернету.'
-                  : 'Не удалось загрузить избранные маршруты. Проверьте подключение к интернету.',
-            ),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted && _selectedButtonIndex == expectedIndex) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  // Методы-обертки для обратной совместимости
-  Future<void> _loadFavoritePlaces() => _loadFavorites(isPlaces: true);
-  Future<void> _loadFavoriteRoutes() => _loadFavorites(isPlaces: false);
-
-  // Универсальный метод для удаления из избранного
-  Future<void> _removeFromFavorites({required bool isPlace, required int index}) async {
-    final token = await AuthService.getToken();
-    if (token == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Необходима авторизация для удаления из избранного'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      if (isPlace) {
-        final place = _favoritePlaces[index];
-        await ApiService.removeFromFavorites(place.id, token);
-        if (mounted) {
-          setState(() {
-            _favoritePlaces.removeAt(index);
-          });
-        }
-      } else {
-        final route = _favoriteRoutes[index];
-        await ApiService.removeRouteFromFavorites(route.id, token);
-        if (mounted) {
-          setState(() {
-            _favoriteRoutes.removeAt(index);
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Не удалось удалить из избранного'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
 
   // Универсальный метод для показа диалога удаления
-  void _showDeleteDialog({required bool isPlace, required int index}) {
+  void _showDeleteDialog(FavouritesLoaded state, {required bool isPlace, required int index}) {
     final questionText = isPlace
         ? 'Вы точно хотите убрать это место из избранного?'
         : 'Вы точно хотите убрать этот маршрут из избранного?';
@@ -274,7 +158,12 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                             Expanded(
                               child: GestureDetector(
                                 onTap: () {
-                                  _removeFromFavorites(isPlace: isPlace, index: index);
+                                  final bloc = context.read<FavouritesBloc>();
+                                  if (isPlace) {
+                                    bloc.add(RemovePlaceFromFavorites(index));
+                                  } else {
+                                    bloc.add(RemoveRouteFromFavorites(index));
+                                  }
                                   Navigator.of(context).pop();
                                 },
                                 child: SmoothContainer(
@@ -374,52 +263,9 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     );
   }
 
-  // Конвертирует Place из api_models в Place из home/domain/entities
-  home_entities.Place _convertPlaceToHomeEntity(Place apiPlace) {
-    return home_entities.Place(
-      id: apiPlace.id,
-      name: apiPlace.name,
-      type: apiPlace.type,
-      rating: apiPlace.rating,
-      images: apiPlace.images.map((img) => shared_entities.Image(
-        id: img.id.toString(),
-        url: img.url,
-        createdAt: img.createdAt,
-        updatedAt: img.updatedAt,
-      )).toList(),
-      address: apiPlace.address,
-      hours: apiPlace.hours,
-      weekend: apiPlace.weekend,
-      entry: apiPlace.entry,
-      contacts: apiPlace.contacts,
-      contactsEmail: apiPlace.contactsEmail,
-      history: apiPlace.history,
-      latitude: apiPlace.latitude,
-      longitude: apiPlace.longitude,
-      reviews: apiPlace.reviews.map((review) {
-        // Конвертируем Review из api_models в shared_entities.Review
-        // shared_entities.Review использует другую структуру полей
-        return shared_entities.Review(
-          id: review.id,
-          text: review.text,
-          authorId: review.userId ?? 0,
-          authorName: review.authorName,
-          authorAvatar: review.authorAvatar ?? '',
-          rating: review.rating, // rating уже int в api_models
-          createdAt: review.createdAt,
-          updatedAt: review.updatedAt,
-          isActive: review.isActive,
-          placeId: review.placeId,
-        );
-      }).toList(),
-      description: apiPlace.description,
-      overview: apiPlace.overview,
-    );
-  }
-
   void _showPlaceDetails(Place place) {
     // Конвертируем Place из api_models в Place из home/domain/entities
-    final homePlace = _convertPlaceToHomeEntity(place);
+    final homePlace = PlaceMapper.fromApi(place);
     
     // Получаем HomeBloc из параметров или из текущего контекста
     HomeBloc? homeBloc = widget.homeBloc;
@@ -454,15 +300,15 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
   }
 
   // Получить URL изображения маршрута
-  // Для упрощения возвращаем пустую строку - изображения будут загружаться из API
-  // В будущем можно добавить загрузку изображений из остановок маршрута
   String _getRouteImageUrl(AppRoute route) {
-    // TODO: Реализовать загрузку изображений из остановок маршрута или из API
+    if (route.imageUrl != null && route.imageUrl!.isNotEmpty) {
+      return route.imageUrl!;
+    }
     return '';
   }
 
   // Виджет для статичной шапки
-  Widget _buildHeader() {
+  Widget _buildHeader(FavouritesLoaded state) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,28 +342,25 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    setState(() {
-                      _selectedButtonIndex = 0;
-                    });
-                    _loadFavoritePlaces();
+                    context.read<FavouritesBloc>().add(const SwitchTab(0));
                   },
                   child: SmoothContainer(
                     padding: const EdgeInsets.all(10),
                     borderRadius: 10,
-                    color: _selectedButtonIndex == 0
+                    color: state.selectedTabIndex == 0
                         ? AppDesignSystem.primaryColor
                         : Colors.transparent,
                     child: Center(
                       child: Text(
                         'Места',
                         style: AppTextStyles.small(
-                          color: _selectedButtonIndex == 0
+                          color: state.selectedTabIndex == 0
                               ? AppDesignSystem.whiteColor
                               : AppDesignSystem.textColorPrimary,
-                          fontWeight: _selectedButtonIndex == 0
+                          fontWeight: state.selectedTabIndex == 0
                               ? AppDesignSystem.fontWeightMedium
                               : AppDesignSystem.fontWeightRegular,
-                          letterSpacing: _selectedButtonIndex == 0
+                          letterSpacing: state.selectedTabIndex == 0
                               ? 0.0
                               : AppDesignSystem.letterSpacingTight,
                         ),
@@ -531,28 +374,25 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    setState(() {
-                      _selectedButtonIndex = 1;
-                    });
-                    _loadFavoriteRoutes();
+                    context.read<FavouritesBloc>().add(const SwitchTab(1));
                   },
                   child: SmoothContainer(
                     padding: const EdgeInsets.all(10),
                     borderRadius: 10,
-                    color: _selectedButtonIndex == 1
+                    color: state.selectedTabIndex == 1
                         ? AppDesignSystem.primaryColor
                         : Colors.transparent,
                     child: Center(
                       child: Text(
                         'Маршруты',
                         style: AppTextStyles.small(
-                          color: _selectedButtonIndex == 1
+                          color: state.selectedTabIndex == 1
                               ? AppDesignSystem.whiteColor
                               : AppDesignSystem.textColorPrimary,
-                          fontWeight: _selectedButtonIndex == 1
+                          fontWeight: state.selectedTabIndex == 1
                               ? AppDesignSystem.fontWeightMedium
                               : AppDesignSystem.fontWeightRegular,
-                          letterSpacing: _selectedButtonIndex == 1
+                          letterSpacing: state.selectedTabIndex == 1
                               ? 0.0
                               : AppDesignSystem.letterSpacingTight,
                         ),
@@ -570,12 +410,9 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
   }
 
   // Виджет для скроллируемого контента с карточками
-  Widget _buildScrollableContent() {
-    final isEmpty = _selectedButtonIndex == 0
-        ? _favoritePlaces.isEmpty
-        : _favoriteRoutes.isEmpty;
-
-    if (_isLoading) {
+  Widget _buildScrollableContent(FavouritesLoaded state) {
+    if (state.isLoading && state.selectedTabIndex == 0 && state.favoritePlaces.isEmpty ||
+        state.isLoading && state.selectedTabIndex == 1 && state.favoriteRoutes.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 40),
@@ -584,27 +421,31 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
       );
     }
 
+    final isEmpty = state.selectedTabIndex == 0
+        ? state.favoritePlaces.isEmpty
+        : state.favoriteRoutes.isEmpty;
+
     if (isEmpty) {
       return _buildEmptyState();
     }
 
-    if (_selectedButtonIndex == 0) {
+    if (state.selectedTabIndex == 0) {
       // Отображаем места
-    return GridView.builder(
-      controller: _cardsScrollController,
-      physics: const BouncingScrollPhysics(),
-      shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 187 / 260,
-      ),
-      itemCount: _favoritePlaces.length,
-      itemBuilder: (context, index) {
-        return _buildPlaceCard(_favoritePlaces[index], index);
-      },
-    );
+      return GridView.builder(
+        controller: _cardsScrollController,
+        physics: const BouncingScrollPhysics(),
+        shrinkWrap: true,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 187 / 260,
+        ),
+        itemCount: state.favoritePlaces.length,
+        itemBuilder: (context, index) {
+          return _buildPlaceCard(state, state.favoritePlaces[index], index);
+        },
+      );
     } else {
       // Отображаем маршруты
       return GridView.builder(
@@ -615,17 +456,17 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 171 / 260, // Соответствует экрану маршрутов
+          childAspectRatio: 171 / 260,
         ),
-        itemCount: _favoriteRoutes.length,
+        itemCount: state.favoriteRoutes.length,
         itemBuilder: (context, index) {
-          return _buildRouteCard(_favoriteRoutes[index], index);
+          return _buildRouteCard(state, state.favoriteRoutes[index], index);
         },
       );
     }
   }
 
-  Widget _buildPlaceCard(Place place, int index) {
+  Widget _buildPlaceCard(FavouritesLoaded state, Place place, int index) {
     return GestureDetector(
       onTap: () => _showPlaceDetails(place),
       child: SmoothContainer(
@@ -704,7 +545,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                       // Иконка избранного
                       GestureDetector(
                         onTap: () {
-                          _showDeleteDialog(isPlace: true, index: index);
+                          _showDeleteDialog(state, isPlace: true, index: index);
                         },
                         behavior: HitTestBehavior.opaque,
                         child: Icon(
@@ -755,7 +596,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
     );
   }
 
-  Widget _buildRouteCard(AppRoute route, int index) {
+  Widget _buildRouteCard(FavouritesLoaded state, AppRoute route, int index) {
     final imageUrl = _getRouteImageUrl(route);
     
     return GestureDetector(
@@ -816,7 +657,7 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
                         left: 10,
                         child: FavoriteButton(
                           isFavorite: true, // Всегда true, так как это экран избранного
-                          onTap: () => _showDeleteDialog(isPlace: false, index: index),
+                          onTap: () => _showDeleteDialog(state, isPlace: false, index: index),
                         ),
                       ),
 
@@ -918,21 +759,57 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _selectedButtonIndex == 0
-          ? _loadFavoritePlaces
-          : _loadFavoriteRoutes,
-      child: Column(
-        children: [
-          // Статичная шапка
-          _buildHeader(),
+    return BlocBuilder<FavouritesBloc, FavouritesState>(
+      builder: (context, state) {
+        if (state is FavouritesError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(state.message),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      final bloc = context.read<FavouritesBloc>();
+                      bloc.add(const LoadFavoritePlaces(forceRefresh: true)); // Явное обновление
+                      bloc.add(const LoadFavoriteRoutes(forceRefresh: true));
+                    },
+                    child: const Text('Попробовать снова'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
-          // Скроллируемые карточки
-          Expanded(
-            child: _buildScrollableContent(),
+        if (state is FavouritesLoaded) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              context.read<FavouritesBloc>().add(const RefreshFavorites());
+            },
+            child: Column(
+              children: [
+                // Статичная шапка
+                _buildHeader(state),
+
+                // Скроллируемые карточки
+                Expanded(
+                  child: _buildScrollableContent(state),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: CircularProgressIndicator(),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

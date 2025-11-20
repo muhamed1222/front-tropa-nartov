@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tropanartov/features/home/presentation/pages/home_page.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_1.dart';
 import 'package:tropanartov/screens/auth/registration_screen.dart';
-import '../../../services/api_service.dart';
+import '../../../services/api_service_dio.dart';
 import '../../../services/auth_service.dart';
 import '../../../core/errors/api_error_handler.dart';
 import '../../../core/constants/auth_constants.dart';
@@ -11,6 +11,7 @@ import '../../../core/constants/app_design_system.dart';
 import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
+import '../../../core/di/injection_container.dart';
 
 class AuthLoginScreen extends StatefulWidget {
   const AuthLoginScreen({super.key});
@@ -96,11 +97,15 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
-      // Вызов API
-      final response = await ApiService.login(email, password);
+      // Вызов API через новый ApiServiceDio
+      final apiService = sl<ApiServiceDio>();
+      final response = await apiService.login(email, password);
 
-      // Сохраняем токен и пользователя
+      // Сохраняем токены и пользователя
       await AuthService.saveToken(response.token);
+      if (response.refreshToken != null) {
+        await AuthService.saveRefreshToken(response.refreshToken!);
+      }
       await AuthService.saveUser(response.user);
       
       // Сохраняем email для автозаполнения

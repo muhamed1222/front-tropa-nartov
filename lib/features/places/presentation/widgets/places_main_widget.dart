@@ -2,18 +2,19 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:tropanartov/core/di/injection_container.dart' as di;
 import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../../core/utils/auth_helper.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/api_models.dart';
-import '../../../../services/api_service.dart';
+import '../../../../services/api_service_dio.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../shared/data/datasources/mock_place_areas_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_categories_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_tags_for_place.dart';
-import '../../../../utils/smooth_border_radius.dart';
 import 'places_filter_widget.dart';
 import '../../../home/presentation/widgets/place_details_sheet_widget.dart';
 
@@ -114,7 +115,8 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
         _hasError = false;
       });
 
-      final places = await ApiService.getPlaces();
+      final apiService = di.sl<ApiServiceDio>();
+      final places = await apiService.getPlaces();
 
       // Загружаем статусы избранного для всех мест
       await _loadFavoriteStatuses(places);
@@ -137,9 +139,10 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     final token = await AuthService.getToken();
     if (token == null) return;
 
+    final apiService = di.sl<ApiServiceDio>();
     for (final place in places) {
       try {
-        final isFavorite = await ApiService.isPlaceFavorite(place.id, token);
+        final isFavorite = await apiService.isPlaceFavorite(place.id, token);
         _favoriteStatus[place.id] = isFavorite;
       } catch (e) {
         _favoriteStatus[place.id] = false;
@@ -149,14 +152,13 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
   // Метод для переключения избранного
   Future<void> _toggleFavorite(int placeId) async {
-    // Проверяем авторизацию
-    final token = await AuthService.getToken();
-    if (token == null) {
+    // Проверяем авторизацию используя AuthHelper
+    String token;
+    try {
+      token = await AuthHelper.requireAuthentication();
+    } on AuthException catch (e) {
       if (mounted) {
-        AppSnackBar.showError(
-          context,
-          'Для добавления в избранное необходимо войти в аккаунт',
-        );
+        AppSnackBar.showError(context, e.message);
       }
       return;
     }
@@ -171,9 +173,10 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
       });
     }
 
+    final apiService = di.sl<ApiServiceDio>();
     try {
       if (currentStatus) {
-        await ApiService.removeFromFavorites(placeId, token);
+        await apiService.removePlaceFromFavorites(placeId, token);
         if (mounted) {
           AppSnackBar.showSuccess(
             context,
@@ -181,7 +184,7 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
           );
         }
       } else {
-        await ApiService.addToFavorites(placeId, token);
+        await apiService.addPlaceToFavorites(placeId, token);
         if (mounted) {
           AppSnackBar.showSuccess(
             context,

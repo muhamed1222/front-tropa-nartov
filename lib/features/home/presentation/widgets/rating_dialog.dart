@@ -1,15 +1,17 @@
-import 'dart:ui';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:tropanartov/core/di/injection_container.dart' as di;
 import 'package:tropanartov/features/home/domain/entities/place.dart';
-import 'package:tropanartov/services/api_service.dart';
+import 'package:tropanartov/services/api_service_dio.dart';
 import 'package:tropanartov/services/auth_service.dart';
+import 'package:tropanartov/shared/domain/entities/review.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../../core/utils/logger.dart';
 
 /// Диалоговое окно для оценки места
 class RatingDialog extends StatefulWidget {
@@ -40,7 +42,7 @@ class RatingDialog extends StatefulWidget {
     // Временно показываем виджет в диалоге, чтобы получить доступ к состоянию
     // Этот диалог будет сразу закрыт, когда покажется форма оценки
     // Используем rootNavigator: true, чтобы диалог открывался поверх bottom sheet
-    final Future<dynamic> intermediateDialogFuture = showDialog(
+    showDialog(
       context: rootContext, // Используем root context для открытия в root Navigator
       barrierColor: Colors.transparent, // Прозрачный фон, чтобы не было видно промежуточного диалога
       barrierDismissible: false,
@@ -94,15 +96,18 @@ class _RatingDialogState extends State<RatingDialog> {
             void closeDialog() {
               if (_dialogNavigator != null && _dialogNavigator!.canPop()) {
                 _dialogNavigator!.pop();
-                _resetDialogValues();
+                _reviewController.clear();
+                setDialogState(() {
+                  _isSubmitting = false;
+                });
               }
             }
 
             // Функция для отправки отзыва
             void submitRating() async {
-              debugPrint('submitRating called');
+              AppLogger.debug('submitRating called');
               final token = await AuthService.getToken();
-              debugPrint('Token: ${token != null ? "found" : "null"}');
+              AppLogger.debug('Token: ${token != null ? "found" : "null"}');
               
               if (token == null) {
                 if (dialogContext.mounted) {
@@ -116,28 +121,35 @@ class _RatingDialogState extends State<RatingDialog> {
               });
 
               try {
-                debugPrint('Sending review...');
-                await ApiService.addReview(
-                  placeId: widget.place.id,
-                  text: _reviewController.text.isNotEmpty ? _reviewController.text : 'Без комментария',
-                  rating: selectedStars,
-                  token: token,
+                AppLogger.debug('Sending review...');
+                final apiService = di.sl<ApiServiceDio>();
+                final comment = _reviewController.text.isNotEmpty 
+                    ? _reviewController.text 
+                    : null;
+                await apiService.addReview(
+                  widget.place.id,
+                  selectedStars,
+                  comment,
+                  token,
                 );
-                debugPrint('Review sent successfully');
+                AppLogger.info('Review sent successfully');
 
                 // Не проверяем mounted от RatingDialogState, так как виджет может быть уже размонтирован
                 // Проверяем только возможность закрытия диалога через навигатор
                 if (_dialogNavigator != null && _dialogNavigator!.canPop()) {
-                  debugPrint('Closing dialog and showing thank you');
+                  AppLogger.debug('Closing dialog and showing thank you');
                   _dialogNavigator!.pop();
                   // Используем parentContext вместо dialogContext, так как диалог уже закрыт
-                  _showThankYouDialog(parentContext);
-                  widget.onReviewAdded?.call();
+                  // Вызываем метод после небольшой задержки, чтобы диалог успел закрыться
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    _showThankYouDialog(parentContext);
+                    widget.onReviewAdded?.call();
+                  });
                 } else {
-                  debugPrint('Cannot close dialog: _dialogNavigator is null or cannot pop');
+                  AppLogger.warning('Cannot close dialog: _dialogNavigator is null or cannot pop');
                 }
               } catch (e) {
-                debugPrint('Error submitting review: $e');
+                AppLogger.error('Error submitting review', e);
                 if (mounted && dialogContext.mounted) {
                   AppSnackBar.showError(dialogContext, 'Ошибка отправки отзыва: $e');
                 }
@@ -157,13 +169,10 @@ class _RatingDialogState extends State<RatingDialog> {
               type: MaterialType.transparency,
               child: Stack(
                 children: [
-                  // Размытый и затемненный фон НА ВЕСЬ ЭКРАН
+                  // Затемненный фон НА ВЕСЬ ЭКРАН (без размытия для производительности)
                   Positioned.fill(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
-                      child: Container(
-                        color: Colors.transparent,
-                      ),
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.4),
                     ),
                   ),
 
@@ -357,6 +366,14 @@ class _RatingDialogState extends State<RatingDialog> {
     );
   }
 
+  // Функция для сброса значений диалога
+  void _resetDialogValues() {
+    _reviewController.clear();
+    setState(() {
+      _isSubmitting = false;
+    });
+  }
+
   /// Функция для показa окна благодарности
   void _showThankYouDialog(BuildContext parentContext) {
     NavigatorState? thankYouNavigator;
@@ -373,13 +390,10 @@ class _RatingDialogState extends State<RatingDialog> {
           type: MaterialType.transparency,
           child: Stack(
             children: [
-              // Размытый и затемненный фон на весь экран (игнорируя SafeArea)
+              // Затемненный фон на весь экран (без размытия для производительности)
               Positioned.fill(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.4),
-                  ),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.4),
                 ),
               ),
               
@@ -442,64 +456,11 @@ class _RatingDialogState extends State<RatingDialog> {
                   child: const SizedBox.expand(),
                 ),
               ),
-              // Повторяем контент поверх GestureDetector, чтобы клики по нему не закрывали диалог
-              Center(
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
-                    child: GestureDetector(
-                      onTap: () {}, // Перехватываем клики по самому диалогу
-                      child: SmoothContainer(
-                        width: AppDesignSystem.dialogWidth,
-                        padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
-                        borderRadius: AppDesignSystem.borderRadiusLarge,
-                        color: AppDesignSystem.backgroundColor,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // Иконка сердца
-                            SvgPicture.asset(
-                              'assets/Heart.svg',
-                              width: 60,
-                              height: 60,
-                            ),
-                            SizedBox(height: AppDesignSystem.spacingLarge),
-
-                            // Текст "Спасибо за вашу оценку!"
-                            Text(
-                              'Спасибо за вашу оценку!',
-                              style: AppTextStyles.title(),
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: AppDesignSystem.spacingLarge),
-
-                            // Описание
-                            Text(
-                              'Она поможет другим туристам сделать правильный выбор.',
-                              style: AppTextStyles.body(
-                                color: AppDesignSystem.textColorTertiary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         );
       },
     );
-  }
-
-  // Функция для сброса значений диалога
-  void _resetDialogValues() {
-    _reviewController.clear();
-    _isSubmitting = false;
   }
 
   @override
@@ -515,6 +476,7 @@ class _RatingDialogState extends State<RatingDialog> {
     }
     
     // Если виджет используется как кнопка (не в диалоге), показываем кнопку
+    // Теперь этот виджет - это просто кнопка, которая вызывает свой собственный метод показа диалога
     return Material(
       color: Colors.transparent,
       child: InkWell(

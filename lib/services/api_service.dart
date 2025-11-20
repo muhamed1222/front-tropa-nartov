@@ -27,9 +27,6 @@ class ApiService {
   static Future<LoginResponse> login(String email, String password) async {
     try {
       final url = '$baseUrl/auth/login';
-      // print('=== LOGIN REQUEST ===');
-      // print('URL: $url');
-      // print('Email: $email');
       
       final response = await _executeWithTimeout(() async {
         return await http.post(
@@ -42,44 +39,25 @@ class ApiService {
         );
       });
 
-      // print('=== LOGIN RESPONSE ===');
-      // print('Status: ${response.statusCode}');
-      // print('Body: ${response.body}');
-
       ApiErrorHandler.handleResponse(response);
       return LoginResponse.fromJson(json.decode(response.body));
     } catch (e) {
-      // print('=== LOGIN ERROR ===');
-      // print('Error: $e');
-      // print('Error type: ${e.runtimeType}');
       throw ApiErrorHandler.handleException(e);
     }
   }
 
   static Future<RegisterResponse> register(String name, String email, String password) async {
-    // ДОБАВЛЕНО: Отладочная информация
-    // print('=== REGISTER DEBUG ===');
-    // print('Name: $name');
-    // print('Email: $email');
-    // print('Password: ${'*' * password.length}');
-
     final requestBody = {
-      'first_name': name, // ИСПРАВЛЕНО: отправляем как first_name
+      'first_name': name,
       'email': email,
       'password': password,
     };
-
-    // print('Request body: $requestBody');
 
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode(requestBody),
     );
-
-    // print('Response status: ${response.statusCode}');
-    // print('Response body: ${response.body}');
-    // print('====================');
 
     if (response.statusCode == 201) {
       return RegisterResponse.fromJson(json.decode(response.body));
@@ -95,46 +73,72 @@ class ApiService {
     }
   }
 
+  // Обновление токена через refresh token
+  static Future<LoginResponse> refreshToken(String refreshToken) async {
+    try {
+      final url = '$baseUrl/auth/refresh';
+      
+      final response = await _executeWithTimeout(() async {
+        return await http.post(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'refresh_token': refreshToken,
+          }),
+        );
+      });
+
+      ApiErrorHandler.handleResponse(response);
+      return LoginResponse.fromJson(json.decode(response.body));
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
+    }
+  }
+
   // Получение профиля пользователя
   static Future<User> getProfile(String token) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/auth/profile'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.get(
+          Uri.parse('$baseUrl/auth/profile'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+      });
 
-    if (response.statusCode == 200) {
+      ApiErrorHandler.handleResponse(response);
       final Map<String, dynamic> data = json.decode(response.body);
       return User.fromJson(data);
-    } else {
-      final error = ApiError.fromJson(json.decode(response.body));
-      throw Exception(error.error);
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
     }
   }
 
   // Обновление профиля пользователя
   static Future<User> updateProfile(String token, String firstName, String lastName, String email) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/auth/profile'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: json.encode({
-        'first_name': firstName,
-        'last_name': lastName,
-        'email': email,
-      }),
-    );
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.put(
+          Uri.parse('$baseUrl/auth/profile'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode({
+            'first_name': firstName,
+            'last_name': lastName,
+            'email': email,
+          }),
+        );
+      });
 
-    if (response.statusCode == 200) {
+      ApiErrorHandler.handleResponse(response);
       final Map<String, dynamic> data = json.decode(response.body);
       return User.fromJson(data);
-    } else {
-      final error = ApiError.fromJson(json.decode(response.body));
-      throw Exception(error.error);
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
     }
   }
 
@@ -145,58 +149,22 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      // print('=== PLACES API DEBUG ===');
-      // print('Status code: ${response.statusCode}');
-      // print('Response body: ${response.body}');
-      // print('========================');
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
 
-        // Детальный отладочный вывод
-        // print('=== PLACES PARSING DEBUG ===');
-        // print('Number of items: ${data.length}');
-        if (data.isNotEmpty) {
-          // print('First item structure:');
-          final firstItem = data.first;
-          if (firstItem is Map) {
-            firstItem.forEach((key, value) {
-              // print('  $key: $value (type: ${value.runtimeType})');
-            });
-          }
-
-          // Проверяем парсинг первого элемента
-          // print('Testing Place.fromJson with first item:');
-          // try {
-            // final testPlace = Place.fromJson(firstItem);
-            // print('Parsed place - ID: ${testPlace.id}, Name: "${testPlace.name}"');
-          // } catch (e) {
-            // print('Error parsing first item: $e');
-          // }
-        }
-
         final List<Place> places = data.map((item) {
-          // print('Parsing item: $item');
-          final place = Place.fromJson(item);
-          // print('Result - ID: ${place.id}, Name: "${place.name}"');
-          return place;
+          return Place.fromJson(item);
         }).toList();
-
-        // for (var i = 0; i < places.length; i++) {
-        //   print('Place $i: ID=${places[i].id}, Name="${places[i].name}"');
-        // }
 
         return places;
       } else {
         throw Exception('Failed to load places: ${response.statusCode}');
       }
     } catch (e) {
-      // print('Error in getPlaces: $e');
       rethrow;
     }
   }
 
-  // ИЗМЕНЕНО: Route -> AppRoute с улучшенной отладкой
   static Future<List<AppRoute>> getRoutes() async {
     try {
       final response = await http.get(
@@ -204,43 +172,30 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      // print('=== ROUTES API DEBUG ===');
-      // print('Status code: ${response.statusCode}');
-      // print('Response body: ${response.body}');
-      // print('========================');
-
       if (response.statusCode == 200) {
         final responseBody = response.body;
 
-        // Проверяем, что ответ не null
         if (responseBody.isEmpty) {
-
           return [];
         }
 
         final List<dynamic> data = json.decode(responseBody);
-        // print('Parsed ${data.length} routes from API');
 
         final routes = <AppRoute>[];
         for (var item in data) {
           try {
-            // print('Parsing route item: $item');
             final route = AppRoute.fromJson(item);
-            // print('Successfully parsed route: ${route.name}');
             routes.add(route);
           } catch (e) {
-            // print('Error parsing route: $e');
-            // print('Problematic item: $item');
+            // Игнорируем ошибки парсинга отдельных элементов
           }
         }
 
-        // print('Successfully parsed ${routes.length} routes');
         return routes;
       } else {
         throw Exception('Failed to load routes: ${response.statusCode}');
       }
     } catch (e) {
-      // print('Exception in getRoutes: $e');
       rethrow;
     }
   }
@@ -301,17 +256,20 @@ class ApiService {
   }
 
   static Future<void> deleteAccount(String token) async {
-    final response = await http.delete(
-      Uri.parse('$baseUrl/auth/delete-account'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.delete(
+          Uri.parse('$baseUrl/auth/delete-account'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+      });
 
-    if (response.statusCode != 200) {
-      final error = ApiError.fromJson(json.decode(response.body));
-      throw Exception(error.error);
+      ApiErrorHandler.handleResponse(response);
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
     }
   }
 
@@ -321,23 +279,24 @@ class ApiService {
       throw Exception('Не авторизован');
     }
 
-    final response = await http.put(
-      Uri.parse('$baseUrl/auth/change-password'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: json.encode({
-        'old_password': oldPassword,
-        'new_password': newPassword,
-      }),
-    );
+    try {
+      final response = await _executeWithTimeout(() async {
+        return await http.put(
+          Uri.parse('$baseUrl/auth/change-password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode({
+            'old_password': oldPassword,
+            'new_password': newPassword,
+          }),
+        );
+      });
 
-    if (response.statusCode == 200) {
-      return;
-    } else {
-      final error = ApiError.fromJson(json.decode(response.body));
-      throw Exception(error.error);
+      ApiErrorHandler.handleResponse(response);
+    } catch (e) {
+      throw ApiErrorHandler.handleException(e);
     }
   }
 
@@ -411,50 +370,19 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      // print('=== REVIEWS API DEBUG ===');
-      // print('Status code: ${response.statusCode}');
-      // print('Response body: ${response.body}');
-      // print('========================');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
 
-        // print('=== REVIEWS PARSING DEBUG ===');
-        // print('Number of reviews: ${data.length}');
-        if (data.isNotEmpty) {
-          // print('First review FULL structure:');
-          final firstItem = data.first;
-          if (firstItem is Map) {
-            firstItem.forEach((key, value) {
-              // print('  $key: $value (type: ${value.runtimeType})');
-              // Детальный вывод структуры user
-              if (key == 'user' && value is Map) {
-                // print('  User structure:');
-                value.forEach((userKey, userValue) {
-                  // print('    $userKey: $userValue (type: ${userValue.runtimeType})');
-                });
-              }
-            });
-          }
-        }
-
         final List<Review> reviews = data.map((item) {
-          // print('Parsing review item: $item');
-          final review = Review.fromJson(item);
-          // print('Parsed review - Author: "${review.authorName}", Rating: ${review.rating}');
-          return review;
+          return Review.fromJson(item);
         }).toList();
-
-        // for (var i = 0; i < reviews.length; i++) {
-        //   print('Review $i: Author="${reviews[i].authorName}", Rating=${reviews[i].rating}, Text="${reviews[i].text}"');
-        // }
 
         return reviews;
       } else {
         throw Exception('Failed to load reviews: ${response.statusCode}');
       }
     } catch (e) {
-      // print('Error in getReviewsForPlace: $e');
       rethrow;
     }
   }
@@ -479,20 +407,8 @@ class ApiService {
         }),
       );
 
-      // print('=== ADD REVIEW DEBUG ===');
-      // print('Status code: ${response.statusCode}');
-      // print('Response body: ${response.body}');
-      // print('Request: place_id=$placeId, text=$text, rating=$rating');
-      // print('========================');
-
       if (response.statusCode == 201) {
         final Map<String, dynamic> data = json.decode(response.body);
-
-        // // Проверяем структуру ответа
-        // print('=== ADD REVIEW RESPONSE STRUCTURE ===');
-        data.forEach((key, value) {
-          // print('  $key: $value (type: ${value.runtimeType})');
-        });
 
         return Review.fromJson(data['review'] ?? data);
       } else {
@@ -500,7 +416,6 @@ class ApiService {
         throw Exception(error.error);
       }
     } catch (e) {
-      // print('Error in addReview: $e');
       rethrow;
     }
   }
@@ -522,7 +437,6 @@ class ApiService {
         throw Exception('Failed to load favorite places: ${response.statusCode}');
       }
     } catch (e) {
-      // print('Error in getFavoritePlaces: $e');
       rethrow;
     }
   }
@@ -656,6 +570,95 @@ class ApiService {
       // print('Error checking favorite status: $e');
       return false;
     }
+  }
+
+  // Получить статусы избранного для нескольких маршрутов одним запросом
+  // Альтернативный вариант: если бэкенд не поддерживает массовый запрос,
+  // можно сделать параллельные запросы вместо последовательных
+  static Future<Map<int, bool>> getFavoriteStatusesForRoutes(
+    List<int> routeIds,
+    String token,
+  ) async {
+    if (routeIds.isEmpty) {
+      return {};
+    }
+
+    try {
+      // Попытка использовать массовый endpoint (если он есть)
+      final response = await http.post(
+        Uri.parse('$baseUrl/favorites/routes/statuses'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'ids': routeIds}),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        final Map<int, bool> statuses = {};
+        
+        // Ожидаем формат: { "1": true, "5": false, "12": true }
+        // или формат: [{ "route_id": 1, "is_favorite": true }, ...]
+        if (data['statuses'] != null && data['statuses'] is Map) {
+          final statusesMap = data['statuses'] as Map<String, dynamic>;
+          statusesMap.forEach((key, value) {
+            final id = int.tryParse(key);
+            if (id != null && value is bool) {
+              statuses[id] = value;
+            }
+          });
+        } else if (data is Map) {
+          // Если ответ уже Map<int, bool> или Map<String, bool>
+          data.forEach((key, value) {
+            final id = int.tryParse(key.toString());
+            if (id != null && value is bool) {
+              statuses[id] = value;
+            }
+          });
+        }
+        
+        // Заполняем отсутствующие ID как false
+        for (final id in routeIds) {
+          statuses.putIfAbsent(id, () => false);
+        }
+        
+        return statuses;
+      } else {
+        // Если массовый endpoint не поддерживается, делаем параллельные запросы
+        return await _loadFavoriteStatusesInParallel(routeIds, token);
+      }
+    } catch (e) {
+      // Если ошибка, делаем параллельные запросы
+      return await _loadFavoriteStatusesInParallel(routeIds, token);
+    }
+  }
+
+  // Загрузить статусы избранного параллельными запросами
+  // Это быстрее последовательных запросов в цикле
+  static Future<Map<int, bool>> _loadFavoriteStatusesInParallel(
+    List<int> routeIds,
+    String token,
+  ) async {
+    final Map<int, bool> statuses = {};
+    
+    // Выполняем все запросы параллельно
+    final futures = routeIds.map((routeId) async {
+      try {
+        final isFavorite = await isRouteFavorite(routeId, token);
+        return MapEntry(routeId, isFavorite);
+      } catch (e) {
+        return MapEntry(routeId, false);
+      }
+    }).toList();
+    
+    final results = await Future.wait(futures);
+    
+    for (final entry in results) {
+      statuses[entry.key] = entry.value;
+    }
+    
+    return statuses;
   }
 
   // Получить статистику пользователя

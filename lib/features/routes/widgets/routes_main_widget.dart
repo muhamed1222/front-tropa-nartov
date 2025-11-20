@@ -1,17 +1,14 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import 'package:flutter_svg/svg.dart';
 import '../../../models/api_models.dart' hide Image;
-import '../../../services/api_service.dart';
 import '../../../services/auth_service.dart';
-import '../../../utils/smooth_border_radius.dart';
 import '../../../core/constants/app_design_system.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../core/utils/auth_helper.dart';
+import '../presentation/bloc/routes_bloc.dart';
 import 'routes_filter_widget.dart';
 import '../../favourites/presentation/widgets/route_details_sheet_simple.dart';
 
@@ -25,20 +22,6 @@ class RoutesMainWidget extends StatefulWidget {
 }
 
 class _RoutesMainWidgetState extends State<RoutesMainWidget> {
-  static const sortingItems = ['Сначала популярные', 'Сначала с высоким рейтингом', 'Сначала новые'];
-  String sortingValue = sortingItems.first;
-  final Map<int, List<String>> _routeImages = {};
-  List<AppRoute> _routes = [];
-  List<AppRoute> _filteredRoutes = [];
-  bool _isLoading = true;
-  bool _hasError = false;
-
-  // Состояние фильтров
-  RouteFilters _currentFilters = const RouteFilters();
-
-  // Map для хранения состояния избранного для каждого маршрута
-  final Map<int, bool> _favoriteStatus = {};
-
   // Контроллер для поиска
   final TextEditingController _searchController = TextEditingController();
 
@@ -52,7 +35,8 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
   void initState() {
     super.initState();
     _cardsScrollController = widget.scrollController ?? ScrollController();
-    _loadRoutes();
+    
+    // Маршруты загружаются через BLoC при создании BlocProvider
 
     // Устанавливаем светлый status bar при открытии
     SystemChrome.setSystemUIOverlayStyle(
@@ -83,215 +67,25 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     super.dispose();
   }
 
-  Future<void> _loadRoutes() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _hasError = false;
-      });
-
-      final routes = await ApiService.getRoutes();
-
-      // Загружаем статусы избранного для всех маршрутов
-      await _loadFavoriteStatuses(routes);
-
-      // Загружаем изображения для маршрутов
-      await _loadRouteImages(routes);
-
-      setState(() {
-        _routes = routes;
-        _filteredRoutes = _applyFiltersAndSorting(routes);
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
-    }
-  }
-
-  // Метод для загрузки статусов избранного для маршрутов
-  Future<void> _loadFavoriteStatuses(List<AppRoute> routes) async {
-    final token = await AuthService.getToken();
-    if (token == null) return;
-
-    for (final route in routes) {
-      try {
-        final isFavorite = await ApiService.isRouteFavorite(route.id, token);
-        _favoriteStatus[route.id] = isFavorite;
-      } catch (e) {
-        _favoriteStatus[route.id] = false;
-      }
-    }
-  }
-
-  // Оптимизированный метод для загрузки изображений маршрутов
-  // Использует поле imageUrl из модели AppRoute, если оно есть
-  Future<void> _loadRouteImages(List<AppRoute> routes) async {
-    // Заполняем карту изображений из данных маршрутов
-    // Если у маршрута есть imageUrl, используем его, иначе оставляем пустым
-    for (final route in routes) {
-      if (route.imageUrl != null && route.imageUrl!.isNotEmpty) {
-        _routeImages[route.id] = [route.imageUrl!];
-      } else {
-        _routeImages[route.id] = [];
-      }
-    }
-  }
-
-  // Метод для получения URL изображения маршрута
-  String _getRouteImageUrl(AppRoute route) {
-    // Сначала проверяем imageUrl из модели
-    if (route.imageUrl != null && route.imageUrl!.isNotEmpty) {
-      return route.imageUrl!;
-    }
-    
-    // Затем проверяем кеш
-    final images = _routeImages[route.id];
-    if (images != null && images.isNotEmpty) {
-      return images.first;
-    }
-    
-    // Возвращаем пустую строку если нет изображений
-    return '';
-  }
-
-  // Метод для переключения избранного
-  Future<void> _toggleFavorite(int routeId) async {
-    // Проверяем авторизацию
-    final token = await AuthService.getToken();
-    if (token == null) {
-      if (mounted) {
-        AppSnackBar.showError(
-          context,
-          'Для добавления в избранное необходимо войти в аккаунт',
-        );
-      }
-      return;
-    }
-
-    // Сохраняем текущее состояние для отката в случае ошибки
-    final currentStatus = _favoriteStatus[routeId] ?? false;
-    
-    // Оптимистично обновляем UI
-    if (mounted) {
-    setState(() {
-        _favoriteStatus[routeId] = !currentStatus;
-      });
-    }
-
-    try {
-      if (currentStatus) {
-        await ApiService.removeRouteFromFavorites(routeId, token);
-        if (mounted) {
-          AppSnackBar.showSuccess(
-            context,
-            'Маршрут удален из избранного',
-          );
-        }
-      } else {
-        await ApiService.addRouteToFavorites(routeId, token);
-        if (mounted) {
-          AppSnackBar.showSuccess(
-            context,
-            'Маршрут добавлен в избранное',
-          );
-        }
-      }
-    } catch (e) {
-      // Откатываем изменения при ошибке
-      if (mounted) {
-        setState(() {
-          _favoriteStatus[routeId] = currentStatus;
-        });
-        
-        final errorMessage = e.toString().replaceAll('Exception: ', '');
-        // Если ошибка 404 или 500, возможно API еще не реализовано на backend
-        if (errorMessage.contains('404') || errorMessage.contains('500')) {
-          AppSnackBar.showInfo(
-            context,
-            'Функционал избранного для маршрутов находится в разработке',
-          );
-        } else {
-          AppSnackBar.showError(
-            context,
-            'Не удалось изменить избранное: $errorMessage',
-          );
-        }
-      }
-    }
-  }
-
-  List<AppRoute> _applyFiltersAndSorting(List<AppRoute> routes) {
-    // Сначала применяем фильтры
-    List<AppRoute> filteredRoutes = _applyFilters(routes);
-
-    // Затем применяем сортировку
-    return _applySorting(filteredRoutes, sortingValue);
-  }
-
-  List<AppRoute> _applyFilters(List<AppRoute> routes) {
-    return routes.where((route) {
-      // Фильтр по типу маршрута
-      if (_currentFilters.selectedTypes.isNotEmpty) {}
-
-      // Фильтр по дистанции
-      if (route.distance < _currentFilters.minDistance || route.distance > _currentFilters.maxDistance) {
-        return false;
-      }
-
-      return true;
-    }).toList();
-  }
-
-  List<AppRoute> _applySorting(List<AppRoute> routes, String sortType) {
-    List<AppRoute> sortedRoutes = List.from(routes);
-
-    switch (sortType) {
-      case 'Сначала популярные':
-        sortedRoutes.sort((a, b) => b.rating.compareTo(a.rating));
-        break;
-
-      case 'Сначала с высоким рейтингом':
-        sortedRoutes.sort((a, b) => b.rating.compareTo(a.rating));
-        break;
-
-      case 'Сначала новые':
-        sortedRoutes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        break;
-
-      case 'Рандомный порядок':
-        sortedRoutes.shuffle();
-        break;
-
-      default:
-        break;
-    }
-
-    return sortedRoutes;
-  }
-
   void _onSortingChanged(String newValue) {
-    setState(() {
-      sortingValue = newValue;
-      _filteredRoutes = _applyFiltersAndSorting(_routes);
-    });
+    context.read<RoutesBloc>().add(ApplySorting(newValue));
   }
 
-  void _shuffleRandom() {
+  void _shuffleRandom(RoutesLoaded state) {
     // Открываем случайную карточку маршрута вместо перетасовки списка
-    if (_filteredRoutes.isEmpty) return;
+    if (state.filteredRoutes.isEmpty) return;
     
     // Выбираем случайный маршрут из отфильтрованного списка
-    final random = Random().nextInt(_filteredRoutes.length);
-    final randomRoute = _filteredRoutes[random];
+    final random = state.filteredRoutes.length > 1 
+        ? state.filteredRoutes.length - 1 
+        : 0;
+    final randomRoute = state.filteredRoutes[random];
     
     // Открываем детали случайного маршрута
     _onRouteTap(randomRoute);
   }
 
-  void _openRouteFilterSheet() {
+  void _openRouteFilterSheet(RoutesLoaded state) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -304,13 +98,10 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
         expand: false,
         builder:
             (context, scrollController) => RoutesFilterWidget(
-          initialFilters: _currentFilters,
+          initialFilters: state.filters,
           scrollController: scrollController,
           onFiltersApplied: (RouteFilters newFilters) {
-            setState(() {
-              _currentFilters = newFilters;
-              _filteredRoutes = _applyFiltersAndSorting(_routes);
-            });
+            context.read<RoutesBloc>().add(ApplyFilters(newFilters));
           },
         ),
       ),
@@ -329,51 +120,75 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     );
   }
 
+  void _toggleFavorite(RoutesLoaded state, int routeId) async {
+    String token;
+    try {
+      token = await AuthHelper.requireAuthentication();
+    } on AuthException catch (e) {
+      if (mounted) {
+        AppSnackBar.showError(context, e.message);
+      }
+      return;
+    }
+
+    try {
+      context.read<RoutesBloc>().add(ToggleFavorite(routeId));
+      
+      final currentStatus = state.favoriteStatus[routeId] ?? false;
+      if (mounted) {
+        AppSnackBar.showSuccess(
+          context,
+          currentStatus 
+              ? 'Маршрут удален из избранного'
+              : 'Маршрут добавлен в избранное',
+        );
+      }
+    } catch (e) {
+      final errorMessage = e.toString().replaceAll('Exception: ', '');
+      if (mounted) {
+        if (errorMessage.contains('404') || errorMessage.contains('500')) {
+          AppSnackBar.showInfo(
+            context,
+            'Функционал избранного для маршрутов находится в разработке',
+          );
+        } else {
+          AppSnackBar.showError(
+            context,
+            'Не удалось изменить избранное: $errorMessage',
+          );
+        }
+      }
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    context.read<RoutesBloc>().add(SearchRoutes(query));
+  }
+
   // Удалить конкретный тип маршрута
-  void _removeRouteType(String type) {
-    setState(() {
-      final newSelectedTypes = List<String>.from(_currentFilters.selectedTypes);
-      newSelectedTypes.remove(type);
-      _currentFilters = _currentFilters.copyWith(selectedTypes: newSelectedTypes);
-      _filteredRoutes = _applyFiltersAndSorting(_routes);
-    });
+  void _removeRouteType(RoutesLoaded state, String type) {
+    final newSelectedTypes = List<String>.from(state.filters.selectedTypes);
+    newSelectedTypes.remove(type);
+    final newFilters = state.filters.copyWith(selectedTypes: newSelectedTypes);
+    context.read<RoutesBloc>().add(ApplyFilters(newFilters));
   }
 
   // Сбросить фильтр дистанции
-  void _resetDistanceFilter() {
-    setState(() {
-      _currentFilters = _currentFilters.copyWith(
-        minDistance: 1.0,
-        maxDistance: 30.0,
-      );
-      _filteredRoutes = _applyFiltersAndSorting(_routes);
-    });
+  void _resetDistanceFilter(RoutesLoaded state) {
+    final newFilters = state.filters.copyWith(
+      minDistance: 1.0,
+      maxDistance: 30.0,
+    );
+    context.read<RoutesBloc>().add(ApplyFilters(newFilters));
   }
 
-  // Виджет для чипса типа маршрута
-  Widget _buildRouteTypeChip(String type) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: AppFilterChip(
-        label: type,
-        onDelete: () => _removeRouteType(type),
-      ),
-    );
+  void _resetAllFilters() {
+    context.read<RoutesBloc>().add(const ResetFilters());
   }
 
-  // Виджет для чипса дистанции
-  Widget _buildDistanceChip() {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: AppFilterChip(
-        label: '${_currentFilters.minDistance.toInt()}-${_currentFilters.maxDistance.toInt()} км',
-        onDelete: _resetDistanceFilter,
-      ),
-    );
-  }
 
   // Виджет для статичной шапки
-  Widget _buildHeader() {
+  Widget _buildHeader(RoutesLoaded state) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,12 +219,13 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
         AppSearchField(
           controller: _searchController,
           hint: 'Поиск маршрутов',
-          onFilterTap: _openRouteFilterSheet,
+          onFilterTap: () => _openRouteFilterSheet(state),
+          onChanged: _onSearchChanged,
         ),
         const SizedBox(height: 16),
 
         // Показываем активные фильтры как отдельные чипсы
-        if (_currentFilters.hasActiveFilters)
+        if (state.filters.hasActiveFilters)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -418,11 +234,11 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
               child: Row(
                 children: [
                   // Чипсы для типов маршрутов
-                  ..._currentFilters.selectedTypes.map(_buildRouteTypeChip),
+                  ...state.filters.selectedTypes.map((type) => _buildRouteTypeChip(state, type)),
 
                   // Чипс для дистанции (если отличается от стандартной)
-                  if (_currentFilters.minDistance > 1.0 || _currentFilters.maxDistance < 30.0)
-                    _buildDistanceChip(),
+                  if (state.filters.minDistance > 1.0 || state.filters.maxDistance < 30.0)
+                    _buildDistanceChip(state),
                 ],
               ),
             ),
@@ -460,7 +276,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        sortingValue,
+                        state.sortType,
                         style: AppTextStyles.small(
                           color: AppDesignSystem.textColorSecondary,
                         ),
@@ -481,7 +297,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                   onPressed: () => controller.isOpen ? controller.close() : controller.open(),
                 ),
                 menuChildren:
-                sortingItems
+                RoutesBloc.sortingItems
                     .map(
                       (e) => MenuItemButton(
                     style: MenuItemButton.styleFrom(
@@ -505,13 +321,13 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: sortingValue == e
+                                color: state.sortType == e
                                     ? AppDesignSystem.primaryColor
                                     : AppDesignSystem.whiteColor,
                                 width: 1,
                               ),
                             ),
-                            child: sortingValue == e
+                            child: state.sortType == e
                                 ? Container(
                               margin: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
@@ -529,7 +345,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                     .toList(),
               ),
               GestureDetector(
-                onTap: _shuffleRandom,
+                onTap: () => _shuffleRandom(state),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                   decoration: BoxDecoration(
@@ -562,8 +378,8 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
   }
 
   // Виджет для скроллируемого контента с карточками
-  Widget _buildScrollableContent() {
-    if (_isLoading) {
+  Widget _buildScrollableContent(RoutesLoaded state) {
+    if (state.isLoading && state.routes.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(20.0),
@@ -572,26 +388,8 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
       );
     }
 
-    if (_hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Ошибка загрузки маршрутов'),
-              const SizedBox(height: 10),
-              PrimaryButton(
-                text: 'Попробовать снова',
-                onPressed: _loadRoutes,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (!_isLoading && !_hasError && _filteredRoutes.isNotEmpty) {
+    if (state.filteredRoutes.isNotEmpty) {
+      final bloc = context.read<RoutesBloc>();
       return GridView.builder(
         controller: _cardsScrollController,
         physics: const BouncingScrollPhysics(),
@@ -602,11 +400,11 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
           mainAxisSpacing: 12,
           childAspectRatio: 171 / 260,
         ),
-        itemCount: _filteredRoutes.length,
+        itemCount: state.filteredRoutes.length,
         itemBuilder: (context, index) {
-          final route = _filteredRoutes[index];
-          final isFavorite = _favoriteStatus[route.id] ?? false;
-          final imageUrl = _getRouteImageUrl(route);
+          final route = state.filteredRoutes[index];
+          final isFavorite = state.favoriteStatus[route.id] ?? false;
+          final imageUrl = bloc.getRouteImageUrl(route, state.routeImages);
 
           return GestureDetector(
             onTap: () => _onRouteTap(route),
@@ -666,7 +464,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                               left: 10,
                               child: FavoriteButton(
                                 isFavorite: isFavorite,
-                                onTap: () => _toggleFavorite(route.id),
+                                onTap: () => _toggleFavorite(state, route.id),
                               ),
                             ),
 
@@ -787,7 +585,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
       );
     }
 
-    if (!_isLoading && !_hasError && _filteredRoutes.isEmpty) {
+    if (state.filteredRoutes.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -795,27 +593,22 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
             Icon(Icons.route, size: 60, color: AppDesignSystem.greyMedium),
             const SizedBox(height: 16),
             Text(
-              _currentFilters.hasActiveFilters ? 'Маршруты не найдены по выбранным фильтрам' : 'Маршруты не найдены',
+              state.filters.hasActiveFilters ? 'Маршруты не найдены по выбранным фильтрам' : 'Маршруты не найдены',
               style: AppTextStyles.body(
                 color: AppDesignSystem.greyMedium,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            if (_currentFilters.hasActiveFilters)
+            if (state.filters.hasActiveFilters)
               PrimaryButton(
                 text: 'Сбросить все фильтры',
-                onPressed: () {
-                  setState(() {
-                    _currentFilters = const RouteFilters();
-                    _filteredRoutes = _applyFiltersAndSorting(_routes);
-                  });
-                },
+                onPressed: _resetAllFilters,
               )
             else
               PrimaryButton(
                 text: 'Обновить',
-                onPressed: _loadRoutes,
+                onPressed: () => context.read<RoutesBloc>().add(const LoadRoutes(forceRefresh: true)),
               ),
           ],
         ),
@@ -825,18 +618,76 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     return const SizedBox.shrink();
   }
 
+  // Виджет для чипса типа маршрута
+  Widget _buildRouteTypeChip(RoutesLoaded state, String type) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: AppFilterChip(
+        label: type,
+        onDelete: () => _removeRouteType(state, type),
+      ),
+    );
+  }
+
+  // Виджет для чипса дистанции
+  Widget _buildDistanceChip(RoutesLoaded state) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: AppFilterChip(
+        label: '${state.filters.minDistance.toInt()}-${state.filters.maxDistance.toInt()} км',
+        onDelete: () => _resetDistanceFilter(state),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Статичная шапка
-        _buildHeader(),
+    return BlocBuilder<RoutesBloc, RoutesState>(
+      builder: (context, state) {
+        if (state is RoutesLoading) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
 
-        // Скроллируемые карточки
-        Expanded(
-          child: _buildScrollableContent(),
-        ),
-      ],
+        if (state is RoutesError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(state.message),
+                  const SizedBox(height: 10),
+                  PrimaryButton(
+                    text: 'Попробовать снова',
+                    onPressed: () => context.read<RoutesBloc>().add(const LoadRoutes(forceRefresh: true)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (state is RoutesLoaded) {
+          return Column(
+            children: [
+              // Статичная шапка
+              _buildHeader(state),
+
+              // Скроллируемые карточки
+              Expanded(
+                child: _buildScrollableContent(state),
+              ),
+            ],
+          );
+        }
+
+        return const SizedBox.shrink();
+      },
     );
   }
 }

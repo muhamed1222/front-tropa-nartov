@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/menu_constants.dart';
+import '../../../../utils/smooth_border_radius.dart';
 
 class AboutProjectWidget extends StatelessWidget {
   const AboutProjectWidget({super.key});
@@ -80,22 +81,37 @@ class AboutProjectWidget extends StatelessWidget {
 
           // Основной контент
           Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Первый абзац
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Первый абзац
                   RichText(
                     text: TextSpan(
-                      style: AppTextStyles.small(),
+                      style: AppTextStyles.body(
+                        color: const Color(0xFF000000), // #000
+                        fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+                      ).copyWith(
+                        height: 1.2, // 120% line-height
+                      ),
                       children: [
                         TextSpan(
                           text: '«Тропа Нартов»',
-                          style: AppTextStyles.small(
-                            fontWeight: AppDesignSystem.fontWeightSemiBold,
+                          style: AppTextStyles.body(
+                            color: const Color(0xFF000000), // #000
+                            fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+                          ).copyWith(
+                            height: 1.2, // 120% line-height
                           ),
                         ),
                         TextSpan(
                           text: ' — это туристическое приложение, созданное для того, чтобы открыть богатство и красоту республик Северного Кавказа. Идея проекта появилась из желания собрать в одном месте все маршруты, достопримечательности и культурное наследие региона, сделать путешествия удобными и понятными для каждого.',
+                          style: AppTextStyles.body(
+                            color: const Color(0xFF000000), // #000
+                            fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+                          ).copyWith(
+                            height: 1.2, // 120% line-height
+                          ),
                         ),
                       ],
                     ),
@@ -106,8 +122,11 @@ class AboutProjectWidget extends StatelessWidget {
                   // Заголовок "Наше приложение помогает:"
                   Text(
                     'Наше приложение помогает:',
-                    style: AppTextStyles.small(
-                      fontWeight: AppDesignSystem.fontWeightSemiBold,
+                    style: AppTextStyles.body(
+                      color: const Color(0xFF000000), // #000
+                      fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+                    ).copyWith(
+                      height: 1.2, // 120% line-height
                     ),
                   ),
 
@@ -132,7 +151,12 @@ class AboutProjectWidget extends StatelessWidget {
                   // Второй абзац
                   Text(
                     '«Тропа Нартов» объединяет туризм и культуру. Это не просто навигатор по достопримечательностям, а проводник в атмосферу Кавказа — с его народами, праздниками, легендами и уникальной природой. Проект вдохновлён любовью к родному краю и стремлением показать его гостям и жителям с новой стороны. Мы верим, что путешествия делают людей ближе друг к другу, а знание своей культуры — сильнее.',
-                    style: AppTextStyles.small(),
+                    style: AppTextStyles.body(
+                      color: const Color(0xFF000000), // #000
+                      fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+                    ).copyWith(
+                      height: 1.2, // 120% line-height
+                    ),
                   ),
 
                   const SizedBox(height: 30),
@@ -140,8 +164,11 @@ class AboutProjectWidget extends StatelessWidget {
                   // Контакты
                   Text(
                     'Найти нас:',
-                    style: AppTextStyles.small(
-                      fontWeight: AppDesignSystem.fontWeightSemiBold,
+                    style: AppTextStyles.body(
+                      color: const Color(0xFF000000), // #000
+                      fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+                    ).copyWith(
+                      height: 1.2, // 120% line-height
                     ),
                   ),
 
@@ -164,18 +191,23 @@ class AboutProjectWidget extends StatelessWidget {
                       // Кнопка ВКонтакте
                       GestureDetector(
                         onTap: () => _openUrl(context, MenuConstants.vkUrl),
-                        child: Container(
+                        child: SmoothContainer(
                           width: 40,
                           height: 40,
                           padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: AppDesignSystem.backgroundColorSecondary,
-                          ),
-                          child: SvgPicture.asset(
-                            'assets/elements.svg',
-                            width: 21.5,
-                            height: 13.5,
+                          borderRadius: 8,
+                          color: const Color(0xFFE4F4F3),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: SvgPicture.asset(
+                                'assets/elements.svg',
+                                width: 20,
+                                height: 20,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -184,25 +216,34 @@ class AboutProjectWidget extends StatelessWidget {
                       // Кнопка Телеграм
                       GestureDetector(
                         onTap: () => _openUrl(context, MenuConstants.telegramUrl),
-                        child: Container(
+                        child: SmoothContainer(
                           width: 40,
                           height: 40,
                           padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: AppDesignSystem.backgroundColorSecondary,
-                          ),
-                          child: SvgPicture.asset(
-                            'assets/elements_telegram.svg',
-                            width: 21,
-                            height: 19.5,
+                          borderRadius: 8,
+                          color: const Color(0xFFE4F4F3),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: SvgPicture.asset(
+                                'assets/elements_telegram.svg',
+                                width: 20,
+                                height: 20,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-            ),
+                      ],
+                    ),
+                    
+                    // Нижний padding
+                    const SizedBox(height: 44),
+                  ],
+                ),
+              ),
           ),
         ],
       ),
@@ -225,12 +266,22 @@ class _BulletPoint extends StatelessWidget {
         children: [
           Text(
             '• ',
-            style: AppTextStyles.small(),
+            style: AppTextStyles.body(
+              color: const Color(0xFF000000), // #000
+              fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+            ).copyWith(
+              height: 1.2, // 120% line-height
+            ),
           ),
           Expanded(
             child: Text(
               text,
-              style: AppTextStyles.small(),
+              style: AppTextStyles.body(
+                color: const Color(0xFF000000), // #000
+                fontWeight: AppDesignSystem.fontWeightRegular, // normal (400)
+              ).copyWith(
+                height: 1.2, // 120% line-height
+              ),
             ),
           ),
         ],

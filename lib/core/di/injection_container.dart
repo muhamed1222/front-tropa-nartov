@@ -6,16 +6,53 @@ import 'package:tropanartov/features/home/domain/usecases/get_places.dart';
 import 'package:tropanartov/features/home/domain/usecases/get_current_position.dart';
 import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import 'package:tropanartov/features/map/data/services/osrm_service.dart';
+import 'package:tropanartov/features/routes/presentation/bloc/routes_bloc.dart';
+import 'package:tropanartov/features/favourites/presentation/bloc/favourites_bloc.dart';
+import 'package:tropanartov/features/places/presentation/bloc/places_bloc.dart';
+import 'package:tropanartov/features/user/presentation/bloc/user_bloc.dart';
+import 'package:tropanartov/services/api_service_dio.dart';
+import 'package:tropanartov/core/network/dio_client.dart';
+import 'package:tropanartov/services/auth_service_instance.dart';
+import 'package:tropanartov/services/user_service.dart';
 
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  // Dio клиент
+  sl.registerLazySingleton(() => createDio());
+
+  // ApiService на Dio
+  sl.registerLazySingleton(() => ApiServiceDio(dio: sl()));
+
+  // AuthService (instance-based) - регистрируем AuthServiceInstance, а не wrapper
+  sl.registerLazySingleton(() => AuthService(apiService: sl<ApiServiceDio>()));
+
+  // UserService (instance-based)
+  sl.registerLazySingleton(() => UserService(
+        apiService: sl(),
+        authService: sl(),
+      ));
+
   // BLoC
   sl.registerFactory(() => HomeBloc(
     getPlaces: sl(),
     getCurrentPosition: sl(),
     osrmService: sl(),
   ));
+
+  sl.registerFactory(() => RoutesBloc(
+        apiService: sl<ApiServiceDio>(),
+        authService: sl<AuthService>(),
+      ));
+  
+  sl.registerFactory(() => FavouritesBloc(
+        apiService: sl<ApiServiceDio>(),
+        authService: sl<AuthService>(),
+      ));
+
+  sl.registerFactory(() => PlacesBloc());
+
+  sl.registerFactory(() => UserBloc());
 
   // Use cases
   sl.registerLazySingleton(() => GetPlaces(sl()));
