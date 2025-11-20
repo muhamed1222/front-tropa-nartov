@@ -113,6 +113,8 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
       ));
       
       // Загружаем статусы избранного в фоне и обновляем UI
+      // Не используем await, чтобы не блокировать основной поток
+      // Проверяем emit.isDone перед вызовом emit в фоновом методе
       _loadFavoriteStatusesInBackground(routes, emit);
     } catch (e) {
       emit(RoutesError('Ошибка загрузки маршрутов: ${e.toString()}'));
@@ -130,8 +132,8 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
       // Кешируем статусы избранного
       _cachedFavoriteStatus = favoriteStatus;
       
-      // Обновляем состояние, если оно все еще RoutesLoaded
-      if (state is RoutesLoaded) {
+      // Обновляем состояние, если оно все еще RoutesLoaded и emit еще активен
+      if (!emit.isDone && state is RoutesLoaded) {
         final currentState = state as RoutesLoaded;
         emit(currentState.copyWith(
           favoriteStatus: favoriteStatus,
@@ -146,7 +148,7 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
       final emptyStatus = {for (final route in routes) route.id: false};
       _cachedFavoriteStatus = emptyStatus;
       
-      if (state is RoutesLoaded) {
+      if (!emit.isDone && state is RoutesLoaded) {
         final currentState = state as RoutesLoaded;
         emit(currentState.copyWith(
           favoriteStatus: emptyStatus,

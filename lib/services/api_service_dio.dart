@@ -287,10 +287,117 @@ class ApiServiceDio {
         .toList();
   }
 
-  /// Получение деталей маршрута по ID
+  /// Получение деталей маршрута по ID (с местами)
   Future<AppRoute> getRouteById(int routeId) async {
-    final response = await _dio.get('/routes/$routeId');
-    return AppRoute.fromJson(response.data as Map<String, dynamic>);
+    try {
+      final response = await _dio.get('/routes/$routeId');
+      return AppRoute.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      AppLogger.error('Failed to load route $routeId', e.error);
+      rethrow;
+    }
+  }
+
+  /// Создание нового маршрута
+  Future<AppRoute> createRoute({
+    required String name,
+    required String description,
+    String? overview,
+    String? history,
+    required double distance,
+    double? duration,
+    required int typeId,
+    required int areaId,
+    List<int>? categoryIds,
+    required List<RouteStopData> stops,
+    String? token,
+  }) async {
+    try {
+      final options = token != null
+          ? Options(headers: {'Authorization': 'Bearer $token'})
+          : null;
+
+      final data = <String, dynamic>{
+        'name': name,
+        'description': description,
+        'distance': distance,
+        'type_id': typeId,
+        'area_id': areaId,
+        'stops': stops.map((stop) => {
+          'place_id': stop.placeId,
+          'order_num': stop.orderNum,
+        }).toList(),
+      };
+
+      if (overview != null) data['overview'] = overview;
+      if (history != null) data['history'] = history;
+      if (duration != null) data['duration'] = duration;
+      if (categoryIds != null && categoryIds.isNotEmpty) {
+        data['category_ids'] = categoryIds;
+      }
+
+      final response = await _dio.post(
+        '/routes',
+        data: data,
+        options: options,
+      );
+
+      // Возвращаем созданный маршрут
+      final routeData = response.data['route'] as Map<String, dynamic>;
+      return AppRoute.fromJson(routeData);
+    } on DioException catch (e) {
+      AppLogger.error('Failed to create route', e.error);
+      if (e.response != null) {
+        final errorMsg = e.response!.data['error']?.toString() ?? 'Ошибка создания маршрута';
+        throw Exception(errorMsg);
+      }
+      rethrow;
+    }
+  }
+
+  /// Получение статусов посещений для списка мест
+  Future<Map<int, bool>> getPlacesVisitStatus(List<int> placeIds, String? token) async {
+    if (placeIds.isEmpty) {
+      return {};
+    }
+
+    try {
+      final options = token != null
+          ? Options(headers: {'Authorization': 'Bearer $token'})
+          : null;
+
+      // Формируем query параметры: placeIds=1&placeIds=2&placeIds=3
+      final queryParams = <String, dynamic>{
+        'placeIds': placeIds.map((id) => id.toString()).toList(),
+      };
+
+      final response = await _dio.get(
+        '/user/activity/places/statuses',
+        queryParameters: queryParams,
+        options: options,
+      );
+
+      // Преобразуем ответ из Map<String, bool> в Map<int, bool>
+      final data = response.data as Map<String, dynamic>;
+      final result = <int, bool>{};
+      data.forEach((key, value) {
+        final placeId = int.tryParse(key);
+        if (placeId != null) {
+          result[placeId] = value as bool;
+        }
+      });
+
+      return result;
+    } on DioException catch (e) {
+      // Если пользователь не авторизован или endpoint не существует, возвращаем все false
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 404) {
+        AppLogger.warning('Cannot get visit statuses: ${e.response?.statusCode}, returning all false');
+        return {for (final id in placeIds) id: false};
+      }
+      AppLogger.error('Failed to load places visit status', e.error);
+      // При ошибке возвращаем все false
+      return {for (final id in placeIds) id: false};
+    }
   }
 
   // ========== Избранное (Favorites) ==========
@@ -476,13 +583,30 @@ class ApiServiceDio {
   // ========== Отзывы (Reviews) ==========
 
   /// Добавление отзыва
-  Future<void> addReview(int placeId, int rating, String? comment, String? token) async {
+  Future<void> addReview({
+    int? placeId,
+    int? routeId,
+    required int rating,
+    String? comment,
+    String? token,
+  }) async {
+    if (placeId == null && routeId == null) {
+      throw ArgumentError('Either placeId or routeId must be provided');
+    }
+    if (placeId != null && routeId != null) {
+      throw ArgumentError('Only one of placeId or routeId should be provided');
+    }
+
     final options = token != null
         ? Options(headers: {'Authorization': 'Bearer $token'})
         : null;
 
+    final endpoint = placeId != null
+        ? '/places/$placeId/reviews'
+        : '/routes/$routeId/reviews';
+
     await _dio.post(
-      '/places/$placeId/reviews',
+      endpoint,
       data: {
         'rating': rating,
         if (comment != null && comment.isNotEmpty) 'comment': comment,
@@ -566,6 +690,52 @@ class ApiServiceDio {
     }
     
     return [];
+  }
+
+  // ========== Отзывы ==========
+
+  /// Получение отзывов для места
+  Future<List<Review>> getReviewsForPlace(int placeId) async {
+    try {
+      final response = await _dio.get('/reviews/place/$placeId');
+      
+      final data = response.data;
+      if (data is List) {
+        return data
+            .map((item) => Review.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+      
+      return [];
+    } on DioException catch (e) {
+      AppLogger.error('Failed to load reviews for place $placeId', e.error);
+      rethrow;
+    }
+  }
+
+  /// Получение отзывов для маршрута
+  Future<List<Review>> getReviewsForRoute(int routeId) async {
+    try {
+      final response = await _dio.get('/reviews/route/$routeId');
+      
+      final data = response.data;
+      if (data is List) {
+        return data
+            .map((item) => Review.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+      
+      return [];
+    } on DioException catch (e) {
+      // Если эндпоинт не существует (404), просто возвращаем пустой список
+      // Это нормально, если бэкенд еще не реализовал этот эндпоинт
+      if (e.response?.statusCode == 404) {
+        AppLogger.warning('Reviews endpoint for route $routeId not found (404), returning empty list');
+        return [];
+      }
+      AppLogger.error('Failed to load reviews for route $routeId', e.error);
+      rethrow;
+    }
   }
 
   // ========== Утилиты ==========

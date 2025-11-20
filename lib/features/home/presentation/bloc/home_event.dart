@@ -59,3 +59,13 @@ class AddRoutePoint extends HomeEvent {
 class BuildRoute extends HomeEvent {
   const BuildRoute();
 }
+
+// Событие для построения маршрута из списка мест
+class BuildRouteFromPlaces extends HomeEvent {
+  final List<Place> places;
+
+  const BuildRouteFromPlaces(this.places);
+
+  @override
+  List<Object?> get props => [places];
+}

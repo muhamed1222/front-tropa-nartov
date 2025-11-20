@@ -127,6 +127,7 @@ class AppRoute {
   final String? imageUrl;
   final String? typeName;
   final String? areaName;
+  final List<RoutePlace>? places; // Места маршрута
 
   AppRoute({
     required this.id,
@@ -145,9 +146,17 @@ class AppRoute {
     this.imageUrl,
     this.typeName,
     this.areaName,
+    this.places,
   });
 
   factory AppRoute.fromJson(Map<String, dynamic> json) {
+    // Парсим места маршрута (stops)
+    List<RoutePlace>? places;
+    if (json['stops'] != null && json['stops'] is List) {
+      places = (json['stops'] as List)
+          .map((stop) => RoutePlace.fromJson(stop as Map<String, dynamic>))
+          .toList();
+    }
 
     return AppRoute(
       id: _parseInt(json['id']),
@@ -166,6 +175,7 @@ class AppRoute {
       imageUrl: json['image_url']?.toString(),
       typeName: json['type_name']?.toString(),
       areaName: json['area_name']?.toString(),
+      places: places,
     );
   }
 
@@ -233,6 +243,61 @@ class AppRoute {
   }
 
   get images => null;
+}
+
+/// Данные для создания места в маршруте (RouteStop)
+class RouteStopData {
+  final int placeId;
+  final int orderNum;
+
+  const RouteStopData({
+    required this.placeId,
+    required this.orderNum,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'place_id': placeId,
+      'order_num': orderNum,
+    };
+  }
+}
+
+/// Место в маршруте (RouteStop)
+class RoutePlace {
+  final int placeId;
+  final int orderNum;
+  final Place place; // Полная информация о месте
+
+  const RoutePlace({
+    required this.placeId,
+    required this.orderNum,
+    required this.place,
+  });
+
+  factory RoutePlace.fromJson(Map<String, dynamic> json) {
+    int _parseInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      if (value is double) return value.toInt();
+      return 0;
+    }
+    
+    return RoutePlace(
+      placeId: _parseInt(json['place_id']),
+      orderNum: _parseInt(json['order_num']),
+      place: Place.fromJson(json['place'] as Map<String, dynamic>),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'place_id': placeId,
+      'order_num': orderNum,
+      'place': place.toJson(),
+    };
+  }
 }
 
 class Place {
@@ -477,7 +542,8 @@ class Review {
   final String createdAt;
   final String updatedAt;
   final bool isActive;
-  final int placeId;
+  final int? placeId;
+  final int? routeId;
   final String authorName;
   final String? authorAvatar;
   final int? userId;
@@ -489,7 +555,8 @@ class Review {
     required this.createdAt,
     required this.updatedAt,
     required this.isActive,
-    required this.placeId,
+    this.placeId,
+    this.routeId,
     required this.authorName,
     this.authorAvatar,
     this.userId,
@@ -558,6 +625,17 @@ class Review {
       text = json['text'].toString();
     }
 
+    // Парсим placeId и routeId (оба опциональны)
+    int? parsedPlaceId;
+    if (json['PlaceID'] != null || json['place_id'] != null) {
+      parsedPlaceId = _parseInt(json['PlaceID'] ?? json['place_id']);
+    }
+    
+    int? parsedRouteId;
+    if (json['RouteID'] != null || json['route_id'] != null) {
+      parsedRouteId = _parseInt(json['RouteID'] ?? json['route_id']);
+    }
+
     return Review(
       id: _parseInt(json['ID'] ?? json['id']),
       text: text,
@@ -565,7 +643,8 @@ class Review {
       createdAt: json['CreatedAt']?.toString() ?? json['created_at']?.toString() ?? '',
       updatedAt: json['UpdatedAt']?.toString() ?? json['updated_at']?.toString() ?? '',
       isActive: json['IsActive'] ?? json['is_active'] ?? true,
-      placeId: _parseInt(json['PlaceID'] ?? json['place_id']),
+      placeId: parsedPlaceId,
+      routeId: parsedRouteId,
       authorName: authorName,
       authorAvatar: json['User']?['avatar_url']?.toString() ?? json['user']?['avatar_url']?.toString(),
       userId: _parseInt(json['UserID'] ?? json['user_id']),
@@ -607,7 +686,7 @@ class Review {
       createdAt: createdAt,
       updatedAt: updatedAt,
       isActive: isActive,
-      placeId: placeId,
+      placeId: placeId ?? 0, // Используем 0 если placeId отсутствует (для отзывов маршрутов)
     );
   }
 

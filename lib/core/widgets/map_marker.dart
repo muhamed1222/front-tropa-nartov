@@ -25,7 +25,6 @@ class MapMarker extends StatelessWidget {
     AppLogger.debug('MapMarker: imageUrl = $imageUrl, hasImage = ${image != null}');
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque, // Важно: делаем маркер полностью кликабельным
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,

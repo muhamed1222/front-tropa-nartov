@@ -44,6 +44,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/icons/
     - assets/animations/4.json
     - assets/animations/1.json
     - assets/animations/1json.json

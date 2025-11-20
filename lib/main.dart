@@ -73,14 +73,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         useMaterial3: true,
       ),
       builder: (context, child) {
-        return Listener(
-          onPointerDown: (_) {
-            // Закрываем клавиатуру при нажатии на любое место экрана
-            FocusManager.instance.primaryFocus?.unfocus();
-          },
-          behavior: HitTestBehavior.translucent,
-          child: child ?? const SizedBox.shrink(),
-        );
+        return child ?? const SizedBox.shrink();
       },
       home: const SplashScreen(),
     );

@@ -31,6 +31,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     on<ClearRoute>(_onClearRoute);
     on<AddRoutePoint>(_onAddRoutePoint);
     on<BuildRoute>(_onBuildRoute);
+    on<BuildRouteFromPlaces>(_onBuildRouteFromPlaces);
   }
 
   Future<void> _onLoadMainData(LoadMainData event, Emitter<HomeState> emit) async {
@@ -193,6 +194,57 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       showPlaceDetails: false, // Закрываем детали места при показе маршрута
       selectedPlace: null,
     ));
+  }
+
+  Future<void> _onBuildRouteFromPlaces(
+      BuildRouteFromPlaces event, Emitter<HomeState> emit) async {
+    if (event.places.isEmpty) {
+      emit(state.copyWith(error: 'Список мест пуст', isLoading: false));
+      return;
+    }
+
+    emit(state.copyWith(isLoading: true));
+
+    try {
+      // Получаем текущее местоположение пользователя
+      final position = await getCurrentPosition.call();
+      if (position == null) {
+        emit(state.copyWith(
+            error: 'Не удалось получить текущее местоположение',
+            isLoading: false));
+        return;
+      }
+
+      final userLocation = LatLng(position.latitude, position.longitude);
+
+      // Формируем массив координат: [userLocation, place1, place2, ...]
+      final coordinates = <LatLng>[userLocation];
+      for (final place in event.places) {
+        coordinates.add(LatLng(place.latitude, place.longitude));
+      }
+
+      // Получаем маршрут с множественными точками
+      final route = await osrmService.getMultiPointDrivingRoute(coordinates);
+
+      // Форматируем время
+      final drivingTime = _formatDuration(route.duration);
+
+      emit(state.copyWith(
+        routeCoordinates: route.coordinates,
+        isLoading: false,
+        routeStartName: 'Мое местоположение',
+        routeEndName: event.places.last.name,
+        drivingTime: drivingTime,
+        routeDistance: route.distance,
+        isRouteBuilt: true,
+        showPlaceDetails: false,
+        selectedPlace: null,
+      ));
+    } catch (e) {
+      AppLogger.error('Failed to build route from places', e);
+      emit(state.copyWith(
+          error: 'Ошибка построения маршрута: $e', isLoading: false));
+    }
   }
 
   /// Форматирует время в секундах в читаемый вид

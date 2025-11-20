@@ -28,18 +28,12 @@ class MapWidget extends StatelessWidget {
         // // Разрешаем вращение карты
         // rotationThreshold: 0.1, // Порог для начала вращения
         // Добавляем обработчик нажатия на карту для закрытия деталей
-        // Важно: onTap вызывается только для кликов по карте, не по маркерам
         onTap: (tapPosition, point) {
           // Закрываем детали места при нажатии на пустую область карты
-          // Это не должно перехватывать клики по маркерам, так как маркеры обрабатывают свои жесты
           if (state.showPlaceDetails) {
             context.read<HomeBloc>().add(const ClosePlaceDetails());
           }
         },
-        // Отключаем перехват жестов маркерами для корректной работы кликов
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-        ),
       ),
       children: [
         // Отображение карты
@@ -111,11 +105,16 @@ class MapWidget extends StatelessWidget {
                   width: 62.0, // 50px (круг) + 12px (стрелка)
                   height: 59.0, // 50px (круг) + 9px (стрелка)
                   alignment: Alignment.topCenter,
-                  child: MapMarker(
-                    imageUrl: place.images.isNotEmpty ? place.images.first.url : null,
+                  child: GestureDetector(
                     onTap: () {
                       context.read<HomeBloc>().add(SelectPlace(place));
                     },
+                    child: MapMarker(
+                      imageUrl: place.images.isNotEmpty ? place.images.first.url : null,
+                      onTap: () {
+                        context.read<HomeBloc>().add(SelectPlace(place));
+                      },
+                    ),
                   ),
                 );
               }).toList(),

@@ -386,7 +386,7 @@ class _ProfilePageState extends State<ProfilePage> {
           createdAt: review.createdAt,
           updatedAt: review.updatedAt,
           isActive: review.isActive,
-          placeId: review.placeId,
+          placeId: review.placeId ?? 0, // Для отзывов маршрутов используем 0
         );
       }).toList() ?? [],
       description: apiPlace.description,

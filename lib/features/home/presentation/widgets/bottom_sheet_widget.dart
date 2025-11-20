@@ -239,7 +239,7 @@ class FavoritesWidget extends StatelessWidget {
                 },
                 child: FavouritesWidget(
                   scrollController: scrollController,
-                  homeBloc: homeBloc, // Передаем HomeBloc явно
+            homeBloc: homeBloc, // Передаем HomeBloc явно
                 ),
               );
             },

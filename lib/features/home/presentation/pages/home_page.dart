@@ -234,10 +234,20 @@ class _HomePageViewState extends State<HomePageView> with TickerProviderStateMix
           return Scaffold(
             body: Stack(
               children: [
-                MapWidget(
-                  key: ValueKey('map_${state.routeCoordinates?.length ?? 0}_${state.isRouteBuilt}'),
-                  mapController: mapController,
-                  state: state,
+                GestureDetector(
+                  onScaleUpdate: (details) {
+                    if (details.scale != 1.0) {
+                      final double currentZoom = mapController.camera.zoom;
+                      final double scaleFactor = details.scale > 1 ? 0.1 : -0.1;
+                      final double newZoom = (currentZoom + scaleFactor).clamp(3.0, 18.0);
+                      mapController.move(mapController.camera.center, newZoom);
+                    }
+                  },
+                  child: MapWidget(
+                    key: ValueKey('map_${state.routeCoordinates?.length ?? 0}_${state.isRouteBuilt}'),
+                    mapController: mapController,
+                    state: state,
+                  ),
                 ),
 
                 // Кнопки зума (исправленные - без FloatingActionButton)

@@ -28,6 +28,18 @@ class OsrmService {
     return _getRoute(start, end, 'walking');
   }
 
+  /// Получает маршрут на машине с множественными точками
+  /// Формат: [userLocation, place1, place2, place3, ...]
+  Future<RouteInfo> getMultiPointDrivingRoute(List<LatLng> points) async {
+    return _getMultiPointRoute(points, 'driving');
+  }
+
+  /// Получает пешеходный маршрут с множественными точками
+  /// Формат: [userLocation, place1, place2, place3, ...]
+  Future<RouteInfo> getMultiPointWalkingRoute(List<LatLng> points) async {
+    return _getMultiPointRoute(points, 'walking');
+  }
+
   /// Устаревший метод - используйте getDrivingRoute или getWalkingRoute
   @Deprecated('Use getDrivingRoute or getWalkingRoute instead')
   Future<List<LatLng>> getRoute(LatLng start, LatLng end) async {
@@ -51,6 +63,33 @@ class OsrmService {
       }
     } catch (e) {
       throw Exception('Failed to fetch route: $e');
+    }
+  }
+
+  /// Базовый метод для получения маршрута с множественными точками
+  Future<RouteInfo> _getMultiPointRoute(List<LatLng> points, String profile) async {
+    if (points.length < 2) {
+      throw Exception('At least 2 points required for route');
+    }
+
+    // Формируем URL: /route/v1/{profile}/{lng1},{lat1};{lng2},{lat2};{lng3},{lat3}?overview=full&geometries=geojson
+    final coordinatesString = points
+        .map((point) => '${point.longitude},${point.latitude}')
+        .join(';');
+    final url =
+        '$_baseUrl/$profile/$coordinatesString?overview=full&geometries=geojson';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return _parseRouteInfo(data);
+      } else {
+        throw Exception('OSRM API error: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch multi-point route: $e');
     }
   }
 

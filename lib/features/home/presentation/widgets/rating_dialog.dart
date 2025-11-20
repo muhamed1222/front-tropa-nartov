@@ -7,24 +7,47 @@ import 'package:tropanartov/features/home/domain/entities/place.dart';
 import 'package:tropanartov/services/api_service_dio.dart';
 import 'package:tropanartov/services/auth_service.dart';
 import 'package:tropanartov/shared/domain/entities/review.dart';
+import 'package:tropanartov/models/api_models.dart' hide Place, Image;
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../core/utils/logger.dart';
 
-/// Диалоговое окно для оценки места
+/// Диалоговое окно для оценки места или маршрута
 class RatingDialog extends StatefulWidget {
-  final Place place;
+  final Place? place;
+  final AppRoute? route;
   final VoidCallback? onReviewAdded;
 
-  const RatingDialog({super.key, required this.place, this.onReviewAdded});
+  const RatingDialog({
+    super.key,
+    this.place,
+    this.route,
+    this.onReviewAdded,
+  }) : assert(place != null || route != null, 'Either place or route must be provided');
 
-  @override
-  State<RatingDialog> createState() => _RatingDialogState();
-
-  /// Статический метод для показа диалога оценки
+  /// Статический метод для показа диалога оценки места
   static void show(BuildContext context, Place place, {VoidCallback? onReviewAdded}) {
+    RatingDialog.showForPlace(context, place, onReviewAdded: onReviewAdded);
+  }
+
+  /// Статический метод для показа диалога оценки места
+  static void showForPlace(BuildContext context, Place place, {VoidCallback? onReviewAdded}) {
+    _showDialog(context, place: place, onReviewAdded: onReviewAdded);
+  }
+
+  /// Статический метод для показа диалога оценки маршрута
+  static void showForRoute(BuildContext context, AppRoute route, {VoidCallback? onReviewAdded}) {
+    _showDialog(context, route: route, onReviewAdded: onReviewAdded);
+  }
+
+  static void _showDialog(
+    BuildContext context, {
+    Place? place,
+    AppRoute? route,
+    VoidCallback? onReviewAdded,
+  }) {
     // Создаем экземпляр виджета для доступа к контроллеру и методам
     final key = GlobalKey<_RatingDialogState>();
     BuildContext? dialogContext;
@@ -36,6 +59,7 @@ class RatingDialog extends StatefulWidget {
     final ratingDialog = RatingDialog(
       key: key,
       place: place,
+      route: route,
       onReviewAdded: onReviewAdded,
     );
     
@@ -64,6 +88,9 @@ class RatingDialog extends StatefulWidget {
       }
     });
   }
+
+  @override
+  State<RatingDialog> createState() => _RatingDialogState();
 }
 
 class _RatingDialogState extends State<RatingDialog> {
@@ -127,10 +154,11 @@ class _RatingDialogState extends State<RatingDialog> {
                     ? _reviewController.text 
                     : null;
                 await apiService.addReview(
-                  widget.place.id,
-                  selectedStars,
-                  comment,
-                  token,
+                  placeId: widget.place?.id,
+                  routeId: widget.route?.id,
+                  rating: selectedStars,
+                  comment: comment,
+                  token: token,
                 );
                 AppLogger.info('Review sent successfully');
 
@@ -191,7 +219,7 @@ class _RatingDialogState extends State<RatingDialog> {
                             Padding(
                               padding: const EdgeInsets.only(right: AppDesignSystem.paddingHorizontal),
                               child: Text(
-                                'Оценить место',
+                                widget.place != null ? 'Оценить место' : 'Оценить маршрут',
                                 style: AppTextStyles.title(),
                                 textAlign: TextAlign.center,
                               ),
@@ -216,9 +244,11 @@ class _RatingDialogState extends State<RatingDialog> {
                                     child: Stack(
                                       children: [
                                         // Изображение из данных
-                                        widget.place.images.isNotEmpty
+                                        (widget.place?.images.isNotEmpty ?? false) || (widget.route?.imageUrl != null)
                                             ? Image.network(
-                                                widget.place.images.first.url,
+                                                widget.place?.images.isNotEmpty ?? false
+                                                    ? widget.place!.images.first.url
+                                                    : widget.route!.imageUrl!,
                                                 width: 80.0,
                                                 height: 80.0,
                                                 fit: BoxFit.cover,
@@ -256,9 +286,9 @@ class _RatingDialogState extends State<RatingDialog> {
                             ),
                             SizedBox(height: AppDesignSystem.spacingLarge),
 
-                            // Название места
+                            // Название места или маршрута
                             Text(
-                              widget.place.name,
+                              widget.place?.name ?? widget.route?.name ?? '',
                               style: AppTextStyles.body(),
                               textAlign: TextAlign.center,
                             ),
@@ -372,6 +402,18 @@ class _RatingDialogState extends State<RatingDialog> {
     setState(() {
       _isSubmitting = false;
     });
+  }
+
+  /// Получает URL изображения для отображения
+  String? _getImageUrl() {
+    if (widget.place != null) {
+      return widget.place!.images.isNotEmpty
+          ? widget.place!.images.first.url
+          : null;
+    } else if (widget.route != null) {
+      return widget.route!.imageUrl;
+    }
+    return null;
   }
 
   /// Функция для показa окна благодарности

@@ -100,12 +100,12 @@ class ApiService {
     try {
       final response = await _executeWithTimeout(() async {
         return await http.get(
-          Uri.parse('$baseUrl/auth/profile'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-        );
+      Uri.parse('$baseUrl/auth/profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
       });
 
       ApiErrorHandler.handleResponse(response);
@@ -121,17 +121,17 @@ class ApiService {
     try {
       final response = await _executeWithTimeout(() async {
         return await http.put(
-          Uri.parse('$baseUrl/auth/profile'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: json.encode({
-            'first_name': firstName,
-            'last_name': lastName,
-            'email': email,
-          }),
-        );
+      Uri.parse('$baseUrl/auth/profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+      }),
+    );
       });
 
       ApiErrorHandler.handleResponse(response);
@@ -259,12 +259,12 @@ class ApiService {
     try {
       final response = await _executeWithTimeout(() async {
         return await http.delete(
-          Uri.parse('$baseUrl/auth/delete-account'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-        );
+      Uri.parse('$baseUrl/auth/delete-account'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
       });
 
       ApiErrorHandler.handleResponse(response);
@@ -282,16 +282,16 @@ class ApiService {
     try {
       final response = await _executeWithTimeout(() async {
         return await http.put(
-          Uri.parse('$baseUrl/auth/change-password'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: json.encode({
-            'old_password': oldPassword,
-            'new_password': newPassword,
-          }),
-        );
+      Uri.parse('$baseUrl/auth/change-password'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({
+        'old_password': oldPassword,
+        'new_password': newPassword,
+      }),
+    );
       });
 
       ApiErrorHandler.handleResponse(response);
