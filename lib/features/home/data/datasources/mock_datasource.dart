@@ -26,7 +26,8 @@ class MockDatasource {
         final responseBody = response.body;
         AppLogger.debug('📡 Размер ответа: ${responseBody.length} байт');
 
-        final List<dynamic> data = json.decode(responseBody);
+        final Map<String, dynamic> jsonResponse = json.decode(responseBody);
+        final List<dynamic> data = jsonResponse['data'] ?? [];
         AppLogger.debug('📡 Получено мест из JSON: ${data.length}');
 
         if (data.isEmpty) {
@@ -132,7 +133,8 @@ class MockDatasource {
       final response = await http.get(Uri.parse('$baseUrl/places'));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        final List<dynamic> data = jsonResponse['data'] ?? [];
         return data.map((json) => Place.fromJson(json)).toList();
       } else {
         throw Exception('Failed to load places: ${response.statusCode}');

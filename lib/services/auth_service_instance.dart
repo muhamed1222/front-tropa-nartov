@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'api_service_dio.dart';
+import 'api_service.dart';
 import '../models/api_models.dart';
 import '../core/utils/logger.dart';
 import '../core/storage/secure_storage_service.dart';

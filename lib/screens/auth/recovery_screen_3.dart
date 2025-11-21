@@ -5,7 +5,7 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
-import '../../../services/api_service.dart';
+import '../../services/api_service_static.dart';
 import '../../../services/auth_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import 'package:tropanartov/features/home/presentation/pages/home_page.dart';

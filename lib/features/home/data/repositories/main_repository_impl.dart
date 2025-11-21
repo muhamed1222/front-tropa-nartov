@@ -11,7 +11,8 @@ class MainRepositoryImpl implements MainRepository {
 
   @override
   Future<List<Place>> getPlaces() async {
-    return await MockDatasource.getPlaces();
+    // Используем метод с логами вместо статического
+    return await datasource.getPlacesFromBackend();
   }
 
   @override

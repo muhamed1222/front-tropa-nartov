@@ -10,7 +10,8 @@ import 'package:tropanartov/features/routes/presentation/bloc/routes_bloc.dart';
 import 'package:tropanartov/features/favourites/presentation/bloc/favourites_bloc.dart';
 import 'package:tropanartov/features/places/presentation/bloc/places_bloc.dart';
 import 'package:tropanartov/features/user/presentation/bloc/user_bloc.dart';
-import 'package:tropanartov/services/api_service_dio.dart';
+import 'package:tropanartov/services/api_service_static.dart';
+import 'package:tropanartov/services/api_service.dart'; // ApiServiceDio
 import 'package:tropanartov/core/network/dio_client.dart';
 import 'package:tropanartov/services/auth_service_instance.dart';
 import 'package:tropanartov/services/user_service.dart';
@@ -21,7 +22,7 @@ Future<void> init() async {
   // Dio клиент
   sl.registerLazySingleton(() => createDio());
 
-  // ApiService на Dio
+  // ApiService на Dio (импортируется из api_service.dart)
   sl.registerLazySingleton(() => ApiServiceDio(dio: sl()));
 
   // AuthService (instance-based) - регистрируем AuthServiceInstance, а не wrapper

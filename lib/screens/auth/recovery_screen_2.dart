@@ -7,7 +7,7 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
-import '../../../services/api_service.dart';
+import '../../services/api_service_static.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_1.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_3.dart';

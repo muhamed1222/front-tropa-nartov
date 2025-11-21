@@ -10,7 +10,8 @@ import '../../../../core/widgets/widgets.dart';
 import '../../../../core/utils/auth_helper.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/api_models.dart';
-import '../../../../services/api_service_dio.dart';
+import '../../../../services/api_service_static.dart';
+import '../../../../services/api_service.dart' show ApiServiceDio;
 import '../../../../services/auth_service.dart';
 import '../../../../shared/data/datasources/mock_place_areas_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_categories_for_place.dart';
@@ -59,6 +60,9 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
   // Map для хранения состояния избранного для каждого места
   final Map<int, bool> _favoriteStatus = {};
+  
+  // Map для хранения состояния посещенных мест
+  final Map<int, bool> _visitedStatus = {};
 
   // Состояние для анимации иконки сортировки
   bool _isSortingMenuOpen = false;
@@ -120,6 +124,9 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
       // Загружаем статусы избранного для всех мест
       await _loadFavoriteStatuses(places);
+      
+      // Загружаем статусы посещенных мест
+      await _loadVisitedStatuses(places);
 
       setState(() {
         _places = places;
@@ -147,6 +154,38 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
       } catch (e) {
         _favoriteStatus[place.id] = false;
       }
+    }
+  }
+  
+  // Метод для загрузки статусов посещенных мест
+  Future<void> _loadVisitedStatuses(List<Place> places) async {
+    final token = await AuthService.getToken();
+    if (token == null) return;
+
+    try {
+      final apiService = di.sl<ApiServiceDio>();
+      // Получаем список посещенных мест
+      final visitedPlaces = await apiService.getUserActivityPlaces(token);
+      
+      // Создаем Set с ID посещенных мест для быстрого поиска
+      final visitedIds = <int>{};
+      for (final item in visitedPlaces) {
+        if (item['place_id'] != null) {
+          visitedIds.add(item['place_id'] as int);
+        }
+      }
+      
+      print('🔍 Посещенные места (IDs): $visitedIds'); // Для отладки
+      
+      for (final place in places) {
+        _visitedStatus[place.id] = visitedIds.contains(place.id);
+        if (visitedIds.contains(place.id)) {
+          print('✅ Место "${place.name}" (ID: ${place.id}) отмечено как посещенное');
+        }
+      }
+    } catch (e) {
+      // Игнорируем ошибки загрузки посещенных мест
+      print('❌ Ошибка загрузки посещенных мест: $e');
     }
   }
 
@@ -669,8 +708,8 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
         shrinkWrap: true,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
           childAspectRatio: 187 / 260,
         ),
         itemCount: _filteredPlaces.length,
@@ -680,9 +719,12 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
           final totalImages = place.images.length;
           final currentImageIndex = 0;
 
+          final isVisited = _visitedStatus[place.id] ?? false;
+          
           return PlaceCard(
             place: place,
             isFavorite: isFavorite,
+            isVisited: isVisited, // ✅ Загружаем из состояния
             currentImageIndex: currentImageIndex,
             totalImages: totalImages > 0 ? totalImages : 1,
             onTap: () => _onPlaceTap(place),

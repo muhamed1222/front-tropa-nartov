@@ -38,6 +38,8 @@ class PlaceTag extends StatelessWidget {
               color: textColor ?? AppDesignSystem.whiteColor,
               fontWeight: AppDesignSystem.fontWeightRegular,
             ), // 12px
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),

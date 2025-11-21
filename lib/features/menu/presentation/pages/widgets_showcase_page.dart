@@ -226,6 +226,7 @@ class _WidgetsShowcasePageState extends State<WidgetsShowcasePage> {
                     createdAt: DateTime.now(),
                   ),
                   isFavorite: false,
+                  isVisited: true, // Демо: показываем плашку "Вы уже были здесь"
                   currentImageIndex: 0,
                   totalImages: 4,
                   onFavoriteTap: () {

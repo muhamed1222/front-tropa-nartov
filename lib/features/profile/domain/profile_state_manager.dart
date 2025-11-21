@@ -1,6 +1,6 @@
 import 'package:tropanartov/models/api_models.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/api_service.dart';
+import '../../../services/api_service_static.dart';
 import '../../../services/republic_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/constants/app_design_system.dart';

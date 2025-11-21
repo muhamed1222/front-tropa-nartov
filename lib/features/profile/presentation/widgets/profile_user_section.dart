@@ -6,7 +6,8 @@ import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../utils/smooth_border_radius.dart';
-import '../../../../services/api_service.dart';
+import '../../../../services/api_service_static.dart';
+import '../../../../config/app_config.dart';
 
 /// Виджет секции профиля пользователя
 class ProfileUserSection extends StatelessWidget {
@@ -48,7 +49,7 @@ class ProfileUserSection extends StatelessWidget {
     if (avatarUrl.startsWith('http')) {
       return avatarUrl;
     } else {
-      return '${ApiService.baseUrl}$avatarUrl';
+      return '${AppConfig.baseUrl}$avatarUrl';
     }
   }
 

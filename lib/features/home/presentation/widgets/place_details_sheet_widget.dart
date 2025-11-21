@@ -5,13 +5,16 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tropanartov/features/home/domain/entities/place.dart';
 import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import 'package:tropanartov/features/home/presentation/widgets/rating_dialog.dart';
-import 'package:tropanartov/services/api_service.dart';
+import '../../../../services/api_service_static.dart';
 import 'package:tropanartov/services/auth_service.dart';
 import 'package:tropanartov/models/api_models.dart' hide Image, Place;
 import 'dart:ui' as ui;
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../../core/widgets/image_carousel_indicator.dart';
+import '../../../../services/api_service.dart' show ApiServiceDio;
+import '../../../../core/di/injection_container.dart' as di;
 
 /// Всплывающее окно с деталями места
 /// Показывается снизу экрана и растягивается от 50% до 100%
@@ -40,6 +43,13 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
   bool _isInitialAnimation = true; // true = идёт анимация появления
   int _selectedTabIndex = 0; // 0 = История, 1 = Обзор, 2 = Отзывы
   bool _isBookmarked = false; // Состояние закладки
+  
+  // Состояние для карусели изображений
+  int _currentImageIndex = 0;
+  final PageController _imagePageController = PageController();
+  
+  // Состояние для посещенных мест
+  bool _isVisited = false;
 
   // Добавляем состояние для отзывов
   List<Review> _reviews = [];
@@ -50,6 +60,9 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
   @override
   void initState() {
     super.initState();
+    
+    // Загружаем статус посещенного места
+    _loadVisitedStatus();
 
     // Плавное появление окна при открытии
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -73,6 +86,33 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     });
 
     _checkFavoriteStatus(); // Проверяем статус при инициализации
+  }
+  
+  @override
+  void dispose() {
+    _imagePageController.dispose();
+    _sheetController.dispose();
+    super.dispose();
+  }
+  
+  // Загружает статус посещенного места
+  Future<void> _loadVisitedStatus() async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) return;
+      
+      final apiService = di.sl<ApiServiceDio>();
+      final visitedPlaces = await apiService.getUserActivityPlaces(token);
+      final isVisited = visitedPlaces.any((item) => item['place_id'] == widget.place.id);
+      
+      if (mounted) {
+        setState(() {
+          _isVisited = isVisited;
+        });
+      }
+    } catch (e) {
+      // Игнорируем ошибку
+    }
   }
 
   // Метод для проверки статуса избранного
@@ -102,14 +142,14 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
 
     try {
       if (_isBookmarked) {
-        await ApiService.removeFromFavorites(widget.place.id, token);
+        await ApiService.removePlaceFromFavorites(widget.place.id, token);
         if (mounted) {
           setState(() {
             _isBookmarked = false;
           });
         }
       } else {
-        await ApiService.addToFavorites(widget.place.id, token);
+        await ApiService.addPlaceToFavorites(widget.place.id, token);
         if (mounted) {
           setState(() {
             _isBookmarked = true;
@@ -133,7 +173,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     }
 
     try {
-      final reviews = await ApiService.getReviewsForPlace(widget.place.id);
+      final reviews = await ApiService.getPlaceReviews(widget.place.id);
 
       if (mounted) {
         setState(() {
@@ -166,7 +206,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     }
 
     try {
-      final reviews = await ApiService.getReviewsForPlace(widget.place.id);
+      final reviews = await ApiService.getPlaceReviews(widget.place.id);
       if (mounted) {
         setState(() {
           _reviews = reviews;
@@ -186,12 +226,6 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
         });
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _sheetController.dispose();
-    super.dispose();
   }
 
   // Получение HomeBloc из доступного контекста
@@ -496,32 +530,39 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            // Фотография с изменяющимся закруглением
+                            // Карусель изображений с изменяющимся закруглением
                             () {
                               final images = widget.place.images;
                               if (images.isNotEmpty) {
-                                final firstImage = images.first;
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(imageBorderRadius),
-                                      topRight: Radius.circular(imageBorderRadius),
-                                    ),
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(imageBorderRadius),
+                                    topRight: Radius.circular(imageBorderRadius),
                                   ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(imageBorderRadius),
-                                      topRight: Radius.circular(imageBorderRadius),
-                                    ),
-                                    child: Image.network(
-                                      firstImage.url,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) => Container(
-                                        color: AppDesignSystem.greyLight,
-                                        child: Icon(Icons.image_not_supported, size: 50, color: AppDesignSystem.textColorPrimary),
-                                      ),
-                                    ),
+                                  child: PageView.builder(
+                                    controller: _imagePageController,
+                                    itemCount: images.length,
+                                    onPageChanged: (index) {
+                                      if (mounted) {
+                                        setState(() {
+                                          _currentImageIndex = index;
+                                        });
+                                      }
+                                    },
+                                    itemBuilder: (context, index) {
+                                      return Image.network(
+                                        images[index].url,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: AppDesignSystem.greyLight,
+                                          child: Icon(
+                                            Icons.image_not_supported,
+                                            size: 50,
+                                            color: AppDesignSystem.textColorPrimary,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 );
                               } else {
@@ -534,25 +575,31 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                                     color: AppDesignSystem.greyLight,
                                   ),
                                   child: Center(
-                                    child: Icon(Icons.image_not_supported, size: 50, color: AppDesignSystem.textColorPrimary),
+                                    child: Icon(
+                                      Icons.image_not_supported,
+                                      size: 50,
+                                      color: AppDesignSystem.textColorPrimary,
+                                    ),
                                   ),
                                 );
                               }
                             }(),
-                            // Градиент поверх фото с тем же закруглением
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(imageBorderRadius),
-                                  topRight: Radius.circular(imageBorderRadius),
+                            // Градиент поверх фото с тем же закруглением (пропускает touch-события)
+                            IgnorePointer(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(imageBorderRadius),
+                                    topRight: Radius.circular(imageBorderRadius),
+                                  ),
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [Colors.transparent, Color(0x8A000000)],
+                                  ),
                                 ),
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [Colors.transparent, Color(0x8A000000)],
-                                ),
+                                child: const SizedBox.shrink(),
                               ),
-                              child: const SizedBox.shrink(),
                             ),
                             // Кнопка bookmark в правом верхнем углу (появляется только при полном открытии)
                             if (_sheetExtent > 0.9)
@@ -572,6 +619,43 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                                       _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                                       size: AppDesignSystem.iconSizeSmall,
                                       color: AppDesignSystem.textColorWhite,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            
+                            // Индикатор пагинации (левый нижний угол)
+                            if (_sheetExtent > 0.9 && widget.place.images.isNotEmpty)
+                              Positioned(
+                                left: 14,
+                                bottom: 30,
+                                child: ImageCarouselIndicator(
+                                  itemCount: widget.place.images.length,
+                                  currentIndex: _currentImageIndex,
+                                ),
+                              ),
+                            
+                            // Плашка "Вы уже были здесь" (правый нижний угол)
+                            if (_sheetExtent > 0.9 && _isVisited)
+                              Positioned(
+                                right: 14,
+                                bottom: 30,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x40FFFFFF), // rgba(255,255,255,0.25)
+                                    borderRadius: BorderRadius.circular(26),
+                                  ),
+                                  child: Opacity(
+                                    opacity: 0.6,
+                                    child: Text(
+                                      'Вы уже были здесь',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.2,
+                                      ),
                                     ),
                                   ),
                                 ),

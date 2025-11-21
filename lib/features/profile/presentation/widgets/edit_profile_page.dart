@@ -10,8 +10,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../../models/api_models.dart';
 import '../../../../screens/auth/login_screen.dart';
-import '../../../../services/api_service.dart';
+import '../../../../services/api_service_static.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../config/app_config.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../core/utils/logger.dart';
@@ -85,7 +86,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         return user.avatarUrl;
       } else {
         // Добавляем baseUrl к относительному пути
-        return '${ApiService.baseUrl}${user.avatarUrl}';
+        return '${AppConfig.baseUrl}${user.avatarUrl}';
       }
     }
     return null;
@@ -143,7 +144,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       // Создаем multipart запрос
       var request = http.MultipartRequest(
           'POST',
-          Uri.parse('${ApiService.baseUrl}/auth/upload-avatar')
+          Uri.parse('${AppConfig.baseUrl}/auth/upload-avatar')
       );
 
       // Добавляем заголовок авторизации
@@ -172,7 +173,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         final avatarUrlFromServer = jsonResponse['avatar_url'];
         if (avatarUrlFromServer != null) {
           // Формируем полный URL
-          final fullAvatarUrl = '${ApiService.baseUrl}$avatarUrlFromServer';
+          final fullAvatarUrl = '${AppConfig.baseUrl}$avatarUrlFromServer';
 
 
           setState(() {
@@ -276,7 +277,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
 
       final response = await http.delete(
-        Uri.parse('${ApiService.baseUrl}/auth/delete-avatar'),
+        Uri.parse('${AppConfig.baseUrl}/auth/delete-avatar'),
         headers: {
           'Authorization': 'Bearer $token',
         },

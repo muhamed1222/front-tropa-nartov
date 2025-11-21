@@ -1,7 +1,8 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../../models/api_models.dart';
-import '../../../../services/api_service_dio.dart';
+import '../../../../services/api_service_static.dart';
+import '../../../../services/api_service.dart' show ApiServiceDio;
 import '../../../../services/auth_service_instance.dart';
 import '../../../../core/constants/app_design_system.dart';
 

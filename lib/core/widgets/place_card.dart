@@ -13,6 +13,7 @@ import 'image_pagination_indicator.dart';
 class PlaceCard extends StatelessWidget {
   final Place place;
   final bool isFavorite;
+  final bool isVisited; // Индикатор посещенного места
   final int currentImageIndex;
   final int totalImages;
   final VoidCallback? onTap;
@@ -22,6 +23,7 @@ class PlaceCard extends StatelessWidget {
     super.key,
     required this.place,
     this.isFavorite = false,
+    this.isVisited = false, // По умолчанию не посещено
     this.currentImageIndex = 0,
     this.totalImages = 1,
     this.onTap,
@@ -82,7 +84,7 @@ class PlaceCard extends StatelessWidget {
                           size: 48,
                         ),
                       ),
-                    // Градиент
+                    // Градиент для читаемости текста
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
@@ -91,12 +93,10 @@ class PlaceCard extends StatelessWidget {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              AppDesignSystem.overlayDark,
+                              const Color(0xCC000000), // Черный 80% для отличной читаемости
                             ],
-                            stops: const [0.5, 0.99862],
+                            stops: const [0.3, 1.0], // Градиент начинается с 30% высоты
                           ),
-                          // Дополнительный градиент слева направо
-                          color: AppDesignSystem.overlayDarkLight,
                         ),
                       ),
                     ),
@@ -116,10 +116,14 @@ class PlaceCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Badge с типом места
-                      PlaceTag(
-                        text: place.type,
+                      // Badge с типом места (Flexible чтобы не переполнялся)
+                      Flexible(
+                        child: PlaceTag(
+                          text: place.type,
+                        ),
                       ),
+
+                      const SizedBox(width: 8), // Отступ между элементами
 
                       // Кнопка избранного
                       FavoriteButton(
@@ -171,7 +175,7 @@ class PlaceCard extends StatelessWidget {
                               fontWeight: FontWeight.w400,
                               height: 1.2,
                             ),
-                            maxLines: 3,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -181,6 +185,30 @@ class PlaceCard extends StatelessWidget {
                 ],
               ),
             ),
+            
+            // Индикатор "Вы уже были здесь" для посещенных мест (по центру)
+            if (isVisited)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0x40FFFFFF), // rgba(255,255,255,0.25) = 40 в hex
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  child: Opacity(
+                    opacity: 0.6, // 60% прозрачности как в Figma
+                    child: Text(
+                      'Вы уже были здесь',
+                      style: GoogleFonts.inter(
+                        color: AppDesignSystem.whiteColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               ],
             ),
           ),

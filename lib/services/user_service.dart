@@ -1,4 +1,4 @@
-import 'api_service_dio.dart';
+import 'api_service.dart';
 import 'auth_service_instance.dart';
 import '../models/api_models.dart';
 

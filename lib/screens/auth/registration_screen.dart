@@ -5,7 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/home/presentation/pages/home_page.dart';
 import 'login_screen.dart';
-import '../../../services/api_service_dio.dart';
+import '../../services/api_service_static.dart';
+import '../../services/api_service.dart' show ApiServiceDio;
 import '../../../services/auth_service.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_design_system.dart';
