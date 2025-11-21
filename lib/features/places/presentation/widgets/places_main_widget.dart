@@ -8,14 +8,17 @@ import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../core/utils/auth_helper.dart';
+import '../../../../core/utils/logger.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/api_models.dart';
-import '../../../../services/api_service_static.dart';
-import '../../../../services/api_service.dart' show ApiServiceDio;
 import '../../../../services/auth_service.dart';
+import '../../../../services/strapi_service.dart';
+import '../../../home/data/datasources/mock_datasource.dart';
+import '../../data/datasources/places_strapi_datasource.dart';
 import '../../../../shared/data/datasources/mock_place_areas_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_categories_for_place.dart';
 import '../../../../shared/data/datasources/mock_place_tags_for_place.dart';
+import '../../data/datasources/filters_datasource.dart';
 import 'places_filter_widget.dart';
 import '../../../home/presentation/widgets/place_details_sheet_widget.dart';
 
@@ -53,6 +56,15 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
 
   // Состояние фильтров
   PlaceFilters _currentFilters = const PlaceFilters();
+  
+  // Данные для фильтров из Strapi
+  List<Map<String, dynamic>> _categories = [];
+  List<Map<String, dynamic>> _areas = [];
+  List<Map<String, dynamic>> _tags = [];
+  bool _filtersLoaded = false;
+  
+  // FiltersDatasource для загрузки фильтров
+  final FiltersDatasource _filtersDatasource = FiltersDatasource();
 
   // Состояние поиска
   late TextEditingController _searchController;
@@ -78,6 +90,7 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     _cardsScrollController = widget.scrollController ?? ScrollController();
     // Создаем уникальный ключ для поля поиска при каждой инициализации
     _searchFieldKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+    _loadFilters(); // Загружаем фильтры из Strapi
     _loadPlaces();
 
     // Устанавливаем светлый status bar при открытии
@@ -89,13 +102,49 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
       ),
     );
   }
+  
+  // Загрузка фильтров из Strapi
+  Future<void> _loadFilters() async {
+    try {
+      final filters = await _filtersDatasource.getAllFilters();
+      
+      setState(() {
+        _categories = filters['categories'] ?? [];
+        _areas = filters['areas'] ?? [];
+        _tags = filters['tags'] ?? [];
+        _filtersLoaded = true;
+      });
+      
+      AppLogger.debug('✅ Фильтры загружены: категорий=${_categories.length}, районов=${_areas.length}, тегов=${_tags.length}');
+    } catch (e) {
+      AppLogger.debug('❌ Ошибка загрузки фильтров: $e');
+      AppLogger.debug('⚠️ Используются fallback данные (mock)');
+      
+      // Если загрузка из Strapi не удалась, используем mock данные
+      setState(() {
+        _categories = mockPlaceCategories;
+        _areas = mockAreas;
+        _tags = mockPlaceTags;
+        _filtersLoaded = true;
+      });
+    }
+  }
 
   @override
   void dispose() {
-    // _searchController.dispose(); // Временно отключаем ручной dispose
+    try {
+      _searchController.dispose();
+    } catch (e) {
+      // Игнорируем ошибки dispose
+    }
+    
     // Не удаляем _cardsScrollController если он передан извне
     if (widget.scrollController == null) {
-      _cardsScrollController.dispose();
+      try {
+        _cardsScrollController.dispose();
+      } catch (e) {
+        // Игнорируем ошибки dispose
+      }
     }
 
     // Восстанавливаем темный status bar при закрытии
@@ -119,8 +168,11 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
         _hasError = false;
       });
 
-      final apiService = di.sl<ApiServiceDio>();
-      final places = await apiService.getPlaces();
+      // Загружаем места из Strapi
+      AppLogger.debug('📡 PlacesMainWidget: Загрузка мест из Strapi...');
+      final strapiDatasource = PlacesStrapiDatasource(strapiService: di.sl<StrapiService>());
+      final places = await strapiDatasource.getPlacesFromStrapi();
+      AppLogger.debug('✅ PlacesMainWidget: Загружено мест из Strapi: ${places.length}');
 
       // Загружаем статусы избранного для всех мест
       await _loadFavoriteStatuses(places);
@@ -141,60 +193,67 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
     }
   }
 
-  // Метод для загрузки статусов избранного
+  // Метод для загрузки статусов избранного из Strapi
   Future<void> _loadFavoriteStatuses(List<Place> places) async {
-    final token = await AuthService.getToken();
-    if (token == null) return;
+    try {
+      final strapiService = di.sl<StrapiService>();
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) return;
 
-    final apiService = di.sl<ApiServiceDio>();
-    for (final place in places) {
-      try {
-        final isFavorite = await apiService.isPlaceFavorite(place.id, token);
-        _favoriteStatus[place.id] = isFavorite;
-      } catch (e) {
+      // Загружаем все избранное пользователя одним запросом
+      final favorites = await strapiService.getFavorites(userId);
+      final favoritePlaceIds = favorites
+          .where((f) => f.place != null)
+          .map((f) => f.place!.id)
+          .toSet();
+
+      // Обновляем статусы для всех мест
+      for (final place in places) {
+        _favoriteStatus[place.id] = favoritePlaceIds.contains(place.id);
+      }
+    } catch (e) {
+      // Игнорируем ошибки, устанавливаем false для всех мест
+      for (final place in places) {
         _favoriteStatus[place.id] = false;
       }
+      print('❌ Ошибка загрузки статусов избранного: $e');
     }
   }
   
-  // Метод для загрузки статусов посещенных мест
+  // Метод для загрузки статусов посещенных мест из Strapi
   Future<void> _loadVisitedStatuses(List<Place> places) async {
-    final token = await AuthService.getToken();
-    if (token == null) return;
-
     try {
-      final apiService = di.sl<ApiServiceDio>();
-      // Получаем список посещенных мест
-      final visitedPlaces = await apiService.getUserActivityPlaces(token);
+      final strapiService = di.sl<StrapiService>();
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) return;
+
+      // Загружаем всю историю посещений одним запросом
+      final visitedPlaces = await strapiService.getVisitedPlaces(userId);
+      final visitedPlaceIds = visitedPlaces
+          .where((v) => v.place != null)
+          .map((v) => v.place!.id)
+          .toSet();
       
-      // Создаем Set с ID посещенных мест для быстрого поиска
-      final visitedIds = <int>{};
-      for (final item in visitedPlaces) {
-        if (item['place_id'] != null) {
-          visitedIds.add(item['place_id'] as int);
-        }
-      }
+      AppLogger.debug('🔍 Посещенные места (IDs): $visitedPlaceIds');
       
-      print('🔍 Посещенные места (IDs): $visitedIds'); // Для отладки
-      
+      // Обновляем статусы для всех мест
       for (final place in places) {
-        _visitedStatus[place.id] = visitedIds.contains(place.id);
-        if (visitedIds.contains(place.id)) {
-          print('✅ Место "${place.name}" (ID: ${place.id}) отмечено как посещенное');
+        _visitedStatus[place.id] = visitedPlaceIds.contains(place.id);
+        if (visitedPlaceIds.contains(place.id)) {
+          AppLogger.debug('✅ Место "${place.name}" (ID: ${place.id}) отмечено как посещенное');
         }
       }
     } catch (e) {
       // Игнорируем ошибки загрузки посещенных мест
-      print('❌ Ошибка загрузки посещенных мест: $e');
+      AppLogger.error('❌ Ошибка загрузки посещенных мест: $e');
     }
   }
 
-  // Метод для переключения избранного
+  // Метод для переключения избранного через Strapi
   Future<void> _toggleFavorite(int placeId) async {
     // Проверяем авторизацию используя AuthHelper
-    String token;
     try {
-      token = await AuthHelper.requireAuthentication();
+      await AuthHelper.requireAuthentication();
     } on AuthException catch (e) {
       if (mounted) {
         AppSnackBar.showError(context, e.message);
@@ -202,8 +261,18 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
       return;
     }
 
+    // Получаем userId
+    final strapiService = di.sl<StrapiService>();
+    final userId = await strapiService.getCurrentUserId();
+    if (userId == null) {
+      if (mounted) {
+        AppSnackBar.showError(context, 'Не удалось получить данные пользователя');
+      }
+      return;
+    }
+
     // Сохраняем текущее состояние для отката в случае ошибки
-      final currentStatus = _favoriteStatus[placeId] ?? false;
+    final currentStatus = _favoriteStatus[placeId] ?? false;
 
     // Оптимистично обновляем UI
     if (mounted) {
@@ -212,10 +281,13 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
       });
     }
 
-    final apiService = di.sl<ApiServiceDio>();
     try {
       if (currentStatus) {
-        await apiService.removePlaceFromFavorites(placeId, token);
+        // Удаляем из избранного
+        await strapiService.removeFromFavoritesByPlaceOrRoute(
+          userId: userId,
+          placeId: placeId,
+        );
         if (mounted) {
           AppSnackBar.showSuccess(
             context,
@@ -223,7 +295,11 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
           );
         }
       } else {
-        await apiService.addPlaceToFavorites(placeId, token);
+        // Добавляем в избранное
+        await strapiService.addToFavorites(
+          userId: userId,
+          placeId: placeId,
+        );
         if (mounted) {
           AppSnackBar.showSuccess(
             context,
@@ -344,9 +420,9 @@ class _PlacesMainWidgetState extends State<PlacesMainWidget> {
         snap: true,
         snapSizes: const [0.0, 0.9],
         builder: (context, scrollController) => FilterWidget(
-          categories: mockPlaceCategories,
-          areas: mockAreas,
-          tags: mockPlaceTags,
+          categories: _filtersLoaded ? _categories : mockPlaceCategories,
+          areas: _filtersLoaded ? _areas : mockAreas,
+          tags: _filtersLoaded ? _tags : mockPlaceTags,
           initialFilters: _currentFilters,
           scrollController: scrollController,
           onFiltersApplied: (PlaceFilters newFilters) {

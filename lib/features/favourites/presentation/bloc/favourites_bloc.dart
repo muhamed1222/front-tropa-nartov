@@ -1,17 +1,21 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../../models/api_models.dart';
-import '../../../../services/api_service_static.dart';
-import '../../../../services/api_service.dart' show ApiServiceDio;
 import '../../../../services/auth_service_instance.dart';
+import '../../../../services/strapi_service.dart';
 import '../../../../core/constants/app_design_system.dart';
+import '../../../../core/di/injection_container.dart' as di;
+import '../../../places/data/datasources/places_strapi_datasource.dart';
+import '../../../routes/data/datasources/routes_strapi_datasource.dart';
 
 part 'favourites_event.dart';
 part 'favourites_state.dart';
 
 class FavouritesBloc extends Bloc<FavouritesEvent, FavouritesState> {
-  final ApiServiceDio _apiService;
   final AuthService _authService;
+  final StrapiService _strapiService;
+  final PlacesStrapiDatasource _placesDatasource;
+  final RoutesStrapiDatasource _routesDatasource;
 
   // Кеширование данных
   List<Place>? _cachedFavoritePlaces;
@@ -19,10 +23,14 @@ class FavouritesBloc extends Bloc<FavouritesEvent, FavouritesState> {
   DateTime? _lastFavoritesLoad;
 
   FavouritesBloc({
-    required ApiServiceDio apiService,
     required AuthService authService,
-  })  : _apiService = apiService,
-        _authService = authService,
+    StrapiService? strapiService,
+    PlacesStrapiDatasource? placesDatasource,
+    RoutesStrapiDatasource? routesDatasource,
+  })  : _authService = authService,
+        _strapiService = strapiService ?? di.sl<StrapiService>(),
+        _placesDatasource = placesDatasource ?? PlacesStrapiDatasource(),
+        _routesDatasource = routesDatasource ?? RoutesStrapiDatasource(),
         super(FavouritesInitial()) {
     on<LoadFavoritePlaces>(_onLoadFavoritePlaces);
     on<LoadFavoriteRoutes>(_onLoadFavoriteRoutes);
@@ -79,21 +87,45 @@ class FavouritesBloc extends Bloc<FavouritesEvent, FavouritesState> {
     }
 
     try {
-      final places = await _apiService.getFavoritePlaces(token);
+      // Получаем userId
+      final userId = await _strapiService.getCurrentUserId();
+      if (userId == null) {
+        emit(FavouritesError('Необходима авторизация для просмотра избранного'));
+        return;
+      }
+
+      // Получаем избранные места из Strapi
+      final strapiPlaces = await _strapiService.getFavoritePlaces(userId);
+      
+      // Конвертируем StrapiPlace в api_models.Place
+      final placesList = <Place>[];
+      for (final strapiPlace in strapiPlaces) {
+        try {
+          // Загружаем полные данные места
+          final fullPlace = await _strapiService.getPlaceById(strapiPlace.id);
+          // Конвертируем через datasource
+          final allPlaces = await _placesDatasource.getPlacesFromStrapi();
+          final place = allPlaces.firstWhere((p) => p.id == fullPlace.id);
+          placesList.add(place);
+        } catch (e) {
+          // Пропускаем места, которые не удалось загрузить
+          print('Error loading favorite place ${strapiPlace.id}: $e');
+        }
+      }
       
       // Кешируем данные
-      _cachedFavoritePlaces = places;
+      _cachedFavoritePlaces = placesList;
       _lastFavoritesLoad = DateTime.now();
       
       if (state is FavouritesLoaded) {
         final prevState = state as FavouritesLoaded;
         emit(prevState.copyWith(
-          favoritePlaces: places,
+          favoritePlaces: placesList,
           isLoading: false,
         ));
       } else {
         emit(FavouritesLoaded(
-          favoritePlaces: places,
+          favoritePlaces: placesList,
           favoriteRoutes: _cachedFavoriteRoutes ?? const [],
           selectedTabIndex: 0,
           isLoading: false,
@@ -156,22 +188,46 @@ class FavouritesBloc extends Bloc<FavouritesEvent, FavouritesState> {
     }
 
     try {
-      final routes = await _apiService.getFavoriteRoutes(token);
+      // Получаем userId
+      final userId = await _strapiService.getCurrentUserId();
+      if (userId == null) {
+        emit(FavouritesError('Необходима авторизация для просмотра избранного'));
+        return;
+      }
+
+      // Получаем избранные маршруты из Strapi
+      final strapiRoutes = await _strapiService.getFavoriteRoutes(userId);
+      
+      // Конвертируем StrapiRoute в api_models.AppRoute
+      final routesList = <AppRoute>[];
+      for (final strapiRoute in strapiRoutes) {
+        try {
+          // Загружаем полные данные маршрута
+          final fullRoute = await _strapiService.getRouteById(strapiRoute.id);
+          // Конвертируем через datasource
+          final allRoutes = await _routesDatasource.getRoutesFromStrapi();
+          final route = allRoutes.firstWhere((r) => r.id == fullRoute.id);
+          routesList.add(route);
+        } catch (e) {
+          // Пропускаем маршруты, которые не удалось загрузить
+          print('Error loading favorite route ${strapiRoute.id}: $e');
+        }
+      }
       
       // Кешируем данные
-      _cachedFavoriteRoutes = routes;
+      _cachedFavoriteRoutes = routesList;
       _lastFavoritesLoad = DateTime.now();
       
       if (state is FavouritesLoaded) {
         final prevState = state as FavouritesLoaded;
         emit(prevState.copyWith(
-          favoriteRoutes: routes,
+          favoriteRoutes: routesList,
           isLoading: false,
         ));
       } else {
         emit(FavouritesLoaded(
           favoritePlaces: _cachedFavoritePlaces ?? const [],
-          favoriteRoutes: routes,
+          favoriteRoutes: routesList,
           selectedTabIndex: 1,
           isLoading: false,
         ));
@@ -208,16 +264,22 @@ class FavouritesBloc extends Bloc<FavouritesEvent, FavouritesState> {
     if (state is! FavouritesLoaded) return;
     
     final currentState = state as FavouritesLoaded;
-    final token = await _authService.getToken();
     
-    if (token == null) {
+    // Получаем userId
+    final userId = await _strapiService.getCurrentUserId();
+    if (userId == null) {
       emit(FavouritesError('Необходима авторизация для удаления из избранного'));
       return;
     }
 
     try {
       final place = currentState.favoritePlaces[event.index];
-      await _apiService.removePlaceFromFavorites(place.id, token);
+      
+      // Удаляем из избранного через Strapi
+      await _strapiService.removeFromFavoritesByPlaceOrRoute(
+        userId: userId,
+        placeId: place.id,
+      );
       
       final updatedPlaces = List<Place>.from(currentState.favoritePlaces);
       updatedPlaces.removeAt(event.index);
@@ -238,16 +300,22 @@ class FavouritesBloc extends Bloc<FavouritesEvent, FavouritesState> {
     if (state is! FavouritesLoaded) return;
     
     final currentState = state as FavouritesLoaded;
-    final token = await _authService.getToken();
     
-    if (token == null) {
+    // Получаем userId
+    final userId = await _strapiService.getCurrentUserId();
+    if (userId == null) {
       emit(FavouritesError('Необходима авторизация для удаления из избранного'));
       return;
     }
 
     try {
       final route = currentState.favoriteRoutes[event.index];
-      await _apiService.removeRouteFromFavorites(route.id, token);
+      
+      // Удаляем из избранного через Strapi
+      await _strapiService.removeFromFavoritesByPlaceOrRoute(
+        userId: userId,
+        routeId: route.id,
+      );
       
       final updatedRoutes = List<AppRoute>.from(currentState.favoriteRoutes);
       updatedRoutes.removeAt(event.index);

@@ -17,15 +17,21 @@ class AuthInterceptor extends Interceptor {
   }
 
   /// Проверяет, требует ли endpoint авторизации
+  /// 
+  /// ✅ МИГРАЦИЯ: Обновлено для Strapi API
   bool _requiresAuth(String path) {
-    // Список путей, которые НЕ требуют авторизации
+    // Список путей, которые НЕ требуют авторизации (Strapi API)
     final publicPaths = [
-      '/auth/login',
-      '/auth/register',
-      '/auth/forgot-password',
-      '/auth/reset-password',
-      '/places',
-      '/routes',
+      '/api/auth/local',              // Вход
+      '/api/auth/local/register',     // Регистрация
+      '/api/auth/forgot-password',     // Восстановление пароля
+      '/api/auth/reset-password',      // Сброс пароля
+      '/api/places',                   // Места (публичные)
+      '/api/routes',                   // Маршруты (публичные)
+      '/api/categories',               // Категории (публичные)
+      '/api/areas',                    // Районы (публичные)
+      '/api/tags',                     // Теги (публичные)
+      '/api/route-types',              // Типы маршрутов (публичные)
     ];
 
     // Проверяем, не является ли путь публичным

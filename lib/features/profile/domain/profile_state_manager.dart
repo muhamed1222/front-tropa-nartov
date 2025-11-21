@@ -1,9 +1,11 @@
 import 'package:tropanartov/models/api_models.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/api_service_static.dart';
 import '../../../services/republic_service.dart';
+import '../../../services/strapi_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/constants/app_design_system.dart';
+import '../../../core/di/injection_container.dart' as di;
+import '../../places/data/datasources/places_strapi_datasource.dart';
 
 /// Класс для управления состоянием профиля
 /// Инкапсулирует логику загрузки и кэширования данных профиля
@@ -58,12 +60,8 @@ class ProfileStateManager {
     }
 
     try {
-      final token = await AuthService.getToken();
-      if (token == null) {
-        // Возвращаем null вместо исключения, если нет токена
-        return null;
-      }
-      final user = await ApiService.getProfile(token);
+      final authService = di.sl<AuthService>();
+      final user = await authService.getProfile();
       _user = user;
       _lastProfileLoad = DateTime.now();
       return user;
@@ -73,7 +71,7 @@ class ProfileStateManager {
     }
   }
 
-  /// Загрузка избранных мест
+  /// Загрузка избранных мест из Strapi
   Future<List<Place>> loadFavoritePlaces({bool forceRefresh = false}) async {
     // Проверяем кэш
     if (!forceRefresh &&
@@ -84,18 +82,40 @@ class ProfileStateManager {
       return _favoritePlaces;
     }
 
-    final token = await AuthService.getToken();
-    if (token == null) {
-      _favoritesError = 'Необходима авторизация';
-      return [];
-    }
-
     try {
-      final places = await ApiService.getFavoritePlaces(token);
-      _favoritePlaces = places;
+      final strapiService = di.sl<StrapiService>();
+      final placesDatasource = PlacesStrapiDatasource();
+      
+      // Получаем userId
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) {
+        _favoritesError = 'Необходима авторизация';
+        return [];
+      }
+
+      // Получаем избранные места из Strapi
+      final strapiPlaces = await strapiService.getFavoritePlaces(userId);
+      
+      // Конвертируем StrapiPlace в api_models.Place
+      final placesList = <Place>[];
+      for (final strapiPlace in strapiPlaces) {
+        try {
+          // Загружаем полные данные места
+          final fullPlace = await strapiService.getPlaceById(strapiPlace.id);
+          // Конвертируем через datasource
+          final allPlaces = await placesDatasource.getPlacesFromStrapi();
+          final place = allPlaces.firstWhere((p) => p.id == fullPlace.id);
+          placesList.add(place);
+        } catch (e) {
+          // Пропускаем места, которые не удалось загрузить
+          AppLogger.warning('Error loading favorite place ${strapiPlace.id}: $e');
+        }
+      }
+      
+      _favoritePlaces = placesList;
       _lastFavoritesLoad = DateTime.now();
       _favoritesError = null;
-      return places;
+      return placesList;
     } catch (e, stackTrace) {
       AppLogger.loadError('Favorite Places', e, stackTrace);
       _favoritesError = 'Ошибка загрузки избранного';
@@ -103,7 +123,7 @@ class ProfileStateManager {
     }
   }
 
-  /// Загрузка статистики
+  /// Загрузка статистики из Strapi
   Future<Map<String, int>> loadStatistics({bool forceRefresh = false}) async {
     // Проверяем кэш
     if (!forceRefresh &&
@@ -119,26 +139,42 @@ class ProfileStateManager {
       };
     }
 
-    final token = await AuthService.getToken();
-    if (token == null) {
-      _statisticsError = 'Необходима авторизация';
-      return {};
-    }
-
     try {
-      // Загружаем статистику пользователя и общее количество параллельно
+      final strapiService = di.sl<StrapiService>();
+      
+      // Получаем userId
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) {
+        _statisticsError = 'Необходима авторизация';
+        return {};
+      }
+
+      // Загружаем данные из Strapi параллельно
       final results = await Future.wait([
-        ApiService.getUserStatistics(token),
-        ApiService.getPlaces(),
-        ApiService.getRoutes(),
+        strapiService.getVisitedPlaces(userId),
+        strapiService.getPlaces(),
+        strapiService.getRoutes(),
       ]);
 
-      final statistics = results[0] as Map<String, int>;
-      final allPlaces = results[1] as List<Place>;
-      final allRoutes = results[2] as List<AppRoute>;
+      final visitedItems = results[0] as List;
+      final allPlaces = results[1] as List;
+      final allRoutes = results[2] as List;
 
-      _visitedPlaces = statistics['visitedPlaces'] ?? 0;
-      _completedRoutes = statistics['completedRoutes'] ?? 0;
+      // Считаем уникальные посещенные места и маршруты
+      final visitedPlaceIds = <int>{};
+      final visitedRouteIds = <int>{};
+      
+      for (var item in visitedItems) {
+        if (item.place != null) {
+          visitedPlaceIds.add(item.place!.id);
+        }
+        if (item.route != null) {
+          visitedRouteIds.add(item.route!.id);
+        }
+      }
+
+      _visitedPlaces = visitedPlaceIds.length;
+      _completedRoutes = visitedRouteIds.length;
       _totalPlaces = allPlaces.length;
       _totalRoutes = allRoutes.length;
       _lastStatisticsLoad = DateTime.now();
@@ -153,11 +189,17 @@ class ProfileStateManager {
     } catch (e, stackTrace) {
       AppLogger.loadError('User Statistics', e, stackTrace);
       _statisticsError = 'Ошибка загрузки статистики';
-      rethrow;
+      // Возвращаем пустую статистику вместо rethrow для более мягкой обработки
+      return {
+        'visitedPlaces': 0,
+        'completedRoutes': 0,
+        'totalPlaces': 0,
+        'totalRoutes': 0,
+      };
     }
   }
 
-  /// Загрузка истории активности
+  /// Загрузка истории активности из Strapi
   Future<List<ActivityItem>> loadActivityHistory({bool forceRefresh = false}) async {
     // Проверяем кэш
     if (!forceRefresh &&
@@ -168,19 +210,53 @@ class ProfileStateManager {
       return _sortedActivities!;
     }
 
-    final token = await AuthService.getToken();
-    if (token == null) {
-      _historyError = 'Необходима авторизация';
-      return [];
-    }
-
     try {
-      final history = await ApiService.getUserActivityHistory(token);
-      // Объединяем и сортируем сразу при загрузке (оптимизированная версия)
-      final allActivities = <ActivityItem>[
-        ...history.places.map((p) => PlaceActivityItem(p)),
-        ...history.routes.map((r) => RouteActivityItem(r)),
-      ]..sort((a, b) => b.passedAt.compareTo(a.passedAt));
+      final strapiService = di.sl<StrapiService>();
+      
+      // Получаем userId
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) {
+        _historyError = 'Необходима авторизация';
+        return [];
+      }
+
+      // Загружаем историю посещений из Strapi
+      final visitedItems = await strapiService.getVisitedPlaces(userId);
+      
+      // Конвертируем в ActivityItem
+      final allActivities = <ActivityItem>[];
+      for (var item in visitedItems) {
+        // item.place - это StrapiPlace?, нужно проверить его существование
+        if (item.place != null && item.visitedAt != null) {
+          // Конвертируем StrapiPlace в Place (api_models) через datasource
+          try {
+            final placesDatasource = PlacesStrapiDatasource(strapiService: strapiService);
+            final allPlaces = await placesDatasource.getPlacesFromStrapi();
+            // item.place - это StrapiPlace объект, берем его id
+            final placeId = item.place!.id;
+            final place = allPlaces.firstWhere((p) => p.id == placeId);
+            
+            // Создаем PlaceActivity и оборачиваем в PlaceActivityItem
+            final placeActivity = PlaceActivity(
+              placeId: place.id,
+              place: place,
+              passedAt: item.visitedAt!,
+            );
+            allActivities.add(PlaceActivityItem(placeActivity));
+          } catch (e) {
+            AppLogger.warning('Error converting visited place ${item.place!.id}: $e');
+          }
+        }
+        
+        // item.route - это StrapiRoute?, нужно проверить его существование
+        if (item.route != null && item.visitedAt != null) {
+          // TODO: Конвертировать StrapiRoute в AppRoute и добавить в историю
+          AppLogger.warning('Route history not yet implemented for route ${item.route!.id}');
+        }
+      }
+
+      // Сортируем по дате (новые первыми)
+      allActivities.sort((a, b) => b.passedAt.compareTo(a.passedAt));
 
       _sortedActivities = allActivities;
       _lastHistoryLoad = DateTime.now();
@@ -189,24 +265,34 @@ class ProfileStateManager {
     } catch (e, stackTrace) {
       AppLogger.loadError('Activity History', e, stackTrace);
       _historyError = 'Ошибка загрузки истории активности';
-      rethrow;
+      // Возвращаем пустой список вместо rethrow для более мягкой обработки
+      return [];
     }
   }
 
-  /// Удаление из избранного
+  /// Удаление из избранного (Strapi)
   Future<void> removeFromFavorites(int index) async {
     if (index < 0 || index >= _favoritePlaces.length) {
       throw Exception('Неверный индекс');
     }
     
     final place = _favoritePlaces[index];
-    final token = await AuthService.getToken();
-    if (token == null) {
-      throw Exception('Необходима авторизация');
-    }
-
+    
     try {
-      await ApiService.removeFromFavorites(place.id, token);
+      final strapiService = di.sl<StrapiService>();
+      
+      // Получаем userId
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('Необходима авторизация');
+      }
+
+      // Удаляем из Strapi
+      await strapiService.removeFromFavoritesByPlaceOrRoute(
+        userId: userId,
+        placeId: place.id,
+      );
+      
       _favoritePlaces.removeAt(index);
       // Инвалидируем кэш избранного
       _lastFavoritesLoad = null;

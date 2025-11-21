@@ -60,7 +60,11 @@ class _HomeBottomSheetWidgetState extends State<HomeBottomSheetWidget> {
 
   @override
   void dispose() {
-    _searchController.dispose();
+    try {
+      _searchController.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 

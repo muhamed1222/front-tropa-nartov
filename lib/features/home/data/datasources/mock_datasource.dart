@@ -6,72 +6,35 @@ import 'package:tropanartov/features/home/domain/entities/place.dart';
 import 'package:tropanartov/shared/domain/entities/review.dart';
 import 'package:tropanartov/config/app_config.dart';
 import 'package:tropanartov/core/utils/logger.dart';
+import 'package:tropanartov/features/home/data/datasources/strapi_datasource.dart';
 
 // Mock-источник. Здесь mockPoints, но как Place.
 class MockDatasource {
+  final StrapiDatasource _strapiDatasource = StrapiDatasource();
 
   Future<List<Place>> getPlacesFromBackend() async {
     try {
-      final baseUrl = AppConfig.baseUrl;
-      final url = '$baseUrl/places';
-      AppLogger.debug('📡 Запрос мест с сервера: $url');
+      AppLogger.debug('📡 Загрузка мест из Strapi CMS...');
       
-      final response = await http.get(
-        Uri.parse(url),
-      );
+      // Используем Strapi datasource вместо Go API
+      final places = await _strapiDatasource.getPlacesFromStrapi();
 
-      AppLogger.debug('📡 Ответ бекенда: статус ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final responseBody = response.body;
-        AppLogger.debug('📡 Размер ответа: ${responseBody.length} байт');
-
-        final Map<String, dynamic> jsonResponse = json.decode(responseBody);
-        final List<dynamic> data = jsonResponse['data'] ?? [];
-        AppLogger.debug('📡 Получено мест из JSON: ${data.length}');
-
-        if (data.isEmpty) {
-          AppLogger.debug('⚠️ Сервер вернул пустой список мест');
+      if (places.isEmpty) {
+        AppLogger.debug('⚠️ Strapi вернул пустой список мест');
+        AppLogger.debug('⚠️ Добавьте места через админ-панель: http://localhost:1337/admin');
           return [];
         }
 
-        // Проверяем структуру первого элемента
-        if (data.isNotEmpty) {
-          final firstItem = data.first;
-          AppLogger.debug('📡 Первый элемент содержит ключи: ${firstItem.keys.toList()}');
-          AppLogger.debug('📡 Первый элемент - latitude: ${firstItem['latitude']}, longitude: ${firstItem['longitude']}');
-        }
-
-        final places = <Place>[];
-        int validCoordinatesCount = 0;
-        
-        for (var i = 0; i < data.length; i++) {
-          try {
-            final place = Place.fromJson(data[i]);
-            places.add(place);
-            
-            // Проверяем координаты
-            if (place.latitude != 0.0 && place.longitude != 0.0 &&
-                place.latitude.abs() <= 90.0 && place.longitude.abs() <= 180.0) {
-              validCoordinatesCount++;
-            } else {
-              AppLogger.debug('⚠️ Место "${place.name}" (ID: ${place.id}) имеет невалидные координаты: lat=${place.latitude}, lng=${place.longitude}');
-            }
-          } catch (e) {
-            AppLogger.debug('❌ Ошибка парсинга места $i: $e');
-          }
-        }
-
-        AppLogger.debug('✅ Успешно загружено мест: ${places.length}, с валидными координатами: $validCoordinatesCount');
+      AppLogger.debug('✅ Успешно загружено мест из Strapi: ${places.length}');
 
         return places;
-      } else {
-        AppLogger.debug('❌ Ошибка загрузки мест: статус ${response.statusCode}');
-        throw Exception('Failed to load places from backend: ${response.statusCode}');
-      }
     } catch (e, stackTrace) {
-      AppLogger.debug('❌ Ошибка загрузки мест с бекенда: $e');
+      AppLogger.debug('❌ Ошибка загрузки мест из Strapi: $e');
       AppLogger.debug('❌ Stack trace: $stackTrace');
+      AppLogger.debug('⚠️ Убедитесь что:');
+      AppLogger.debug('   1. Strapi запущен (http://localhost:1337)');
+      AppLogger.debug('   2. Публичный доступ открыт');
+      AppLogger.debug('   3. Места добавлены в админ-панели');
       return [];
     }
   }

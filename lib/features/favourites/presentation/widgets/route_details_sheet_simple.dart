@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/constants/app_design_system.dart';
 import 'package:tropanartov/models/api_models.dart' hide Image;
 import 'package:tropanartov/utils/smooth_border_radius.dart';
@@ -22,7 +23,8 @@ class RouteDetailsSheetSimple extends StatelessWidget {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
-        return ClipPath(
+        return RepaintBoundary(
+          child: ClipPath(
           clipper: SmoothBorderClipper(radius: 20),
           child: Container(
             color: Colors.white,
@@ -32,6 +34,7 @@ class RouteDetailsSheetSimple extends StatelessWidget {
                 SingleChildScrollView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(14, 50, 14, 20),
+                    child: RepaintBoundary(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -42,14 +45,26 @@ class RouteDetailsSheetSimple extends StatelessWidget {
                       ),
                       // Изображение маршрута
                       if (route.imageUrl != null && route.imageUrl!.isNotEmpty)
-                        ClipPath(
+                        RepaintBoundary(
+                          child: ClipPath(
                           clipper: SmoothBorderClipper(radius: 16),
-                          child: Image.network(
-                            route.imageUrl!,
+                            child: CachedNetworkImage(
+                              imageUrl: route.imageUrl!,
                             width: double.infinity,
                             height: 200,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
+                              placeholder: (context, url) => Container(
+                                width: double.infinity,
+                                height: 200,
+                                color: Colors.grey[300],
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF24A79C),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
                               width: double.infinity,
                               height: 200,
                               color: Colors.grey[300],
@@ -57,6 +72,7 @@ class RouteDetailsSheetSimple extends StatelessWidget {
                                 Icons.route,
                                 size: 48,
                                 color: Color(0xFF24A79C),
+                                ),
                               ),
                             ),
                           ),
@@ -259,6 +275,7 @@ class RouteDetailsSheetSimple extends StatelessWidget {
                           ],
                         ),
                     ],
+                    ),
                   ),
                 ),
                 // Кнопка закрытия
@@ -281,6 +298,7 @@ class RouteDetailsSheetSimple extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         );

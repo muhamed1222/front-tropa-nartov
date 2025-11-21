@@ -5,8 +5,9 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
-import '../../services/api_service_static.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/di/injection_container.dart' as di;
+import '../../../services/strapi_service.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_2.dart';
 import 'login_screen.dart';
 
@@ -49,7 +50,9 @@ class _AuthRecoveryOneScreenState extends State<AuthRecoveryOneScreen> {
 
     try {
       final email = _emailController.text.trim();
-      await ApiService.forgotPassword(email);
+      // ✅ МИГРАЦИЯ: Используем StrapiService вместо Go API
+      final strapiService = di.sl<StrapiService>();
+      await strapiService.forgotPassword(email);
 
       if (mounted) {
         Navigator.of(context).push(
@@ -88,8 +91,12 @@ class _AuthRecoveryOneScreenState extends State<AuthRecoveryOneScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _emailFocusNode.dispose();
+    try {
+      _emailController.dispose();
+      _emailFocusNode.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 

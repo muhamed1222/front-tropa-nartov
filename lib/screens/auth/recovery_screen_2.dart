@@ -7,8 +7,9 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
-import '../../services/api_service_static.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/di/injection_container.dart' as di;
+import '../../../services/strapi_service.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_1.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_3.dart';
 
@@ -67,9 +68,10 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
 
     try {
       final code = _codeController.text.trim();
-      await ApiService.verifyResetCode(code);
-
       final email = _emailController.text.trim();
+      
+      // ✅ МИГРАЦИЯ: Strapi не имеет отдельного endpoint для проверки кода
+      // Код проверяется при reset-password, поэтому сразу переходим к экрану сброса пароля
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -122,7 +124,9 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
 
     try {
       final email = _emailController.text.trim();
-      await ApiService.forgotPassword(email);
+      // ✅ МИГРАЦИЯ: Используем StrapiService вместо Go API
+      final strapiService = di.sl<StrapiService>();
+      await strapiService.forgotPassword(email);
 
       if (mounted) {
         AppSnackBar.showSuccess(context, 'Код подтверждения отправлен повторно');
@@ -185,11 +189,15 @@ class _AuthRecoveryTwoScreenState extends State<AuthRecoveryTwoScreen> {
 
   @override
   void dispose() {
-    _resendTimer?.cancel();
-    _emailController.dispose();
-    _codeController.dispose();
-    _emailFocusNode.dispose();
-    _codeFocusNode.dispose();
+    try {
+      _resendTimer?.cancel();
+      _emailController.dispose();
+      _codeController.dispose();
+      _emailFocusNode.dispose();
+      _codeFocusNode.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 

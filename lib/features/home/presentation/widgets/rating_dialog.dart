@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:tropanartov/core/di/injection_container.dart' as di;
 import 'package:tropanartov/features/home/domain/entities/place.dart';
-import '../../../../services/api_service_static.dart';
-import '../../../../services/api_service.dart' show ApiServiceDio;
+import '../../../../services/strapi_service.dart';
 import 'package:tropanartov/services/auth_service.dart';
 import 'package:tropanartov/shared/domain/entities/review.dart';
 import 'package:tropanartov/models/api_models.dart' hide Place, Image;
@@ -95,7 +94,6 @@ class RatingDialog extends StatefulWidget {
 }
 
 class _RatingDialogState extends State<RatingDialog> {
-  final TextEditingController _reviewController = TextEditingController();
   bool _isSubmitting = false;
   NavigatorState? _dialogNavigator; // Сохраняем Navigator диалога
   
@@ -108,6 +106,9 @@ class _RatingDialogState extends State<RatingDialog> {
 
   void _showRatingDialog(BuildContext parentContext) {
     int selectedStars = 1;
+    // Создаем контроллер ВНУТРИ диалога - он будет жить пока диалог открыт
+    final TextEditingController reviewController = TextEditingController();
+    bool isDisposed = false; // Флаг для отслеживания dispose контроллера
 
     showDialog(
       context: parentContext,
@@ -117,14 +118,35 @@ class _RatingDialogState extends State<RatingDialog> {
         // Сохраняем Navigator диалога для явного управления
         _dialogNavigator = Navigator.of(dialogContext, rootNavigator: true);
         
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setDialogState) {
+        return WillPopScope(
+          onWillPop: () async {
+            // Гарантируем dispose контроллера при закрытии диалога
+            if (!isDisposed) {
+              isDisposed = true;
+              try {
+                reviewController.dispose();
+              } catch (e) {
+                // Игнорируем ошибки
+              }
+            }
+            return true; // Разрешаем закрытие
+          },
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setDialogState) {
 
             // Функция для закрытия диалога и сброса значений
             void closeDialog() {
               if (_dialogNavigator != null && _dialogNavigator!.canPop()) {
                 _dialogNavigator!.pop();
-                _reviewController.clear();
+                // Dispose контроллера ТОЛЬКО когда диалог закрывается
+                if (!isDisposed) {
+                  isDisposed = true;
+                  try {
+                    reviewController.dispose();
+                  } catch (e) {
+                    // Игнорируем ошибки при dispose контроллера
+                  }
+                }
                 setDialogState(() {
                   _isSubmitting = false;
                 });
@@ -144,24 +166,41 @@ class _RatingDialogState extends State<RatingDialog> {
                 return;
               }
 
+              // ВАЖНО: Читаем текст из контроллера ДО установки _isSubmitting!
+              // Иначе контроллер может быть disposed до того как мы его прочитаем
+              String? comment;
+              if (!isDisposed) {
+                try {
+                  final reviewText = reviewController.text;
+                  AppLogger.debug('Review text from controller: "$reviewText"');
+                  comment = reviewText.isNotEmpty ? reviewText : null;
+                  AppLogger.debug('Comment to send: "$comment"');
+                } catch (e) {
+                  // Контроллер мог быть disposed
+                  AppLogger.error('Error reading review text', e);
+                  comment = null;
+                }
+              } else {
+                AppLogger.warning('Controller already disposed, cannot read text');
+              }
+
+              // Только после чтения текста устанавливаем флаг загрузки
               setDialogState(() {
                 _isSubmitting = true;
               });
 
               try {
-                AppLogger.debug('Sending review...');
-                final apiService = di.sl<ApiServiceDio>();
-                final comment = _reviewController.text.isNotEmpty 
-                    ? _reviewController.text 
-                    : null;
-                await apiService.addReview(
+                AppLogger.debug('Sending review to Strapi...');
+                final strapiService = di.sl<StrapiService>();
+                
+                // Отправляем отзыв в Strapi
+                await strapiService.createReview(
+                  rating: selectedStars,
+                  text: comment,
                   placeId: widget.place?.id,
                   routeId: widget.route?.id,
-                  rating: selectedStars,
-                  comment: comment,
-                  token: token,
                 );
-                AppLogger.info('Review sent successfully');
+                AppLogger.info('Review sent to Strapi successfully');
 
                 // Не проверяем mounted от RatingDialogState, так как виджет может быть уже размонтирован
                 // Проверяем только возможность закрытия диалога через навигатор
@@ -213,9 +252,11 @@ class _RatingDialogState extends State<RatingDialog> {
                         padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
                         borderRadius: AppDesignSystem.borderRadiusLarge,
                         color: AppDesignSystem.backgroundColor,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+                        child: AbsorbPointer(
+                          absorbing: _isSubmitting || isDisposed, // Блокируем ВСЕ взаимодействия
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                             // Текст "Оценить"
                             Padding(
                               padding: const EdgeInsets.only(right: AppDesignSystem.paddingHorizontal),
@@ -300,21 +341,26 @@ class _RatingDialogState extends State<RatingDialog> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: List.generate(5, (index) {
                                 return GestureDetector(
-                                  onTap: () {
-                                    setDialogState(() {
-                                      selectedStars = index + 1;
-                                    });
-                                  },
+                                  onTap: _isSubmitting 
+                                      ? null // Блокируем выбор во время отправки
+                                      : () {
+                                          setDialogState(() {
+                                            selectedStars = index + 1;
+                                          });
+                                        },
                                   child: Container(
                                     width: 32,
                                     height: 32,
                                     margin: const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacingTiny),
-                                    child: Icon(
-                                      Icons.star,
-                                      color: index < selectedStars
-                                          ? const Color(0xFFFFC800)
-                                          : AppDesignSystem.backgroundColorSecondary,
-                                      size: 32,
+                                    child: Opacity(
+                                      opacity: _isSubmitting ? 0.5 : 1.0, // Делаем полупрозрачным во время отправки
+                                      child: Icon(
+                                        Icons.star,
+                                        color: index < selectedStars
+                                            ? const Color(0xFFFFC800)
+                                            : AppDesignSystem.backgroundColorSecondary,
+                                        size: 32,
+                                      ),
                                     ),
                                   ),
                                 );
@@ -329,18 +375,40 @@ class _RatingDialogState extends State<RatingDialog> {
                               padding: const EdgeInsets.all(AppDesignSystem.spacingSmall + 2),
                               borderRadius: AppDesignSystem.borderRadiusSmall,
                               border: Border.all(color: AppDesignSystem.greyLight),
-                              child: TextField(
-                                controller: _reviewController,
-                                maxLines: null,
-                                expands: true,
-                                textAlignVertical: TextAlignVertical.top,
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: 'Расскажите о своих впечатлениях...',
-                                  hintStyle: AppTextStyles.hint(),
-                                ),
-                                style: AppTextStyles.body(),
-                              ),
+                              child: _isSubmitting
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircularProgressIndicator(
+                                          color: AppDesignSystem.primaryColor,
+                                        ),
+                                        SizedBox(height: AppDesignSystem.spacingSmall),
+                                        Text(
+                                          'Отправка отзыва...',
+                                          style: AppTextStyles.hint(),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : isDisposed
+                                    ? SizedBox.shrink() // Если disposed - ничего не показываем
+                                    : AbsorbPointer(
+                                        absorbing: _isSubmitting || isDisposed, // Блокируем взаимодействие
+                                        child: TextField(
+                                          controller: reviewController,
+                                          maxLines: null,
+                                          expands: true,
+                                          textAlignVertical: TextAlignVertical.top,
+                                          enabled: !_isSubmitting && !isDisposed, // Дополнительная защита
+                                          decoration: InputDecoration(
+                                            border: InputBorder.none,
+                                            hintText: 'Расскажите о своих впечатлениях...',
+                                            hintStyle: AppTextStyles.hint(),
+                                          ),
+                                          style: AppTextStyles.body(),
+                                        ),
+                                      ),
                             ),
                             SizedBox(height: AppDesignSystem.spacingXLarge),
 
@@ -385,6 +453,7 @@ class _RatingDialogState extends State<RatingDialog> {
                             ),
                           ],
                         ),
+                        ), // Закрываем AbsorbPointer
                       ),
                     ),
                   ),
@@ -392,17 +461,20 @@ class _RatingDialogState extends State<RatingDialog> {
               ),
             );
           },
-        );
+          ), // Закрываем StatefulBuilder
+        ); // Закрываем WillPopScope
       },
     );
   }
 
   // Функция для сброса значений диалога
+  // Контроллер теперь dispose'ится в closeDialog, поэтому здесь только сбрасываем состояние
   void _resetDialogValues() {
-    _reviewController.clear();
-    setState(() {
-      _isSubmitting = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   /// Получает URL изображения для отображения
@@ -543,7 +615,8 @@ class _RatingDialogState extends State<RatingDialog> {
 
   @override
   void dispose() {
-    _reviewController.dispose();
+    // Контроллер теперь dispose'ится в closeDialog() когда диалог закрывается
+    // Здесь ничего не делаем, так как контроллер создается внутри диалога
     super.dispose();
   }
 }

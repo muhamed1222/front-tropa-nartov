@@ -96,16 +96,20 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog>
 
   @override
   void dispose() {
-    _oldPasswordController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
-    _oldPasswordFocusNode.dispose();
-    _newPasswordFocusNode.dispose();
-    _confirmPasswordFocusNode.dispose();
-    _oldPasswordDebounceTimer?.cancel();
-    _newPasswordDebounceTimer?.cancel();
-    _confirmPasswordDebounceTimer?.cancel();
-    _animationController.dispose();
+    try {
+      _oldPasswordController.dispose();
+      _newPasswordController.dispose();
+      _confirmPasswordController.dispose();
+      _oldPasswordFocusNode.dispose();
+      _newPasswordFocusNode.dispose();
+      _confirmPasswordFocusNode.dispose();
+      _oldPasswordDebounceTimer?.cancel();
+      _newPasswordDebounceTimer?.cancel();
+      _confirmPasswordDebounceTimer?.cancel();
+      _animationController.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 

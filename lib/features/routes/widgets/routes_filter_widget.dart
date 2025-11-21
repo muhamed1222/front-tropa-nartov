@@ -9,12 +9,14 @@ class RoutesFilterWidget extends StatefulWidget {
   final RouteFilters initialFilters;
   final Function(RouteFilters) onFiltersApplied;
   final ScrollController? scrollController;
+  final List<Map<String, dynamic>> routeTypes;
 
   const RoutesFilterWidget({
     super.key,
     required this.initialFilters,
     required this.onFiltersApplied,
     this.scrollController,
+    this.routeTypes = const [],
   });
 
   @override
@@ -50,10 +52,14 @@ class _RoutesFilterWidgetState extends State<RoutesFilterWidget> {
 
   @override
   void dispose() {
-    _minDistanceController.dispose();
-    _maxDistanceController.dispose();
-    _minFocusNode.dispose();
-    _maxFocusNode.dispose();
+    try {
+      _minDistanceController.dispose();
+      _maxDistanceController.dispose();
+      _minFocusNode.dispose();
+      _maxFocusNode.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 
@@ -234,16 +240,28 @@ class _RoutesFilterWidgetState extends State<RoutesFilterWidget> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 0),
                           child: Column(
-                            children: ['Пеший', 'Авто', 'Комбинированный'].asMap().entries.map((entry) {
-                              final index = entry.key;
-                              final type = entry.value;
-                              return Column(
-                                children: [
-                                  _buildRouteTypeItem(type),
-                                  if (index < 2) const SizedBox(height: 12),
-                                ],
-                              );
-                            }).toList(),
+                            children: widget.routeTypes.isEmpty
+                                ? ['Пеший', 'Авто', 'Комбинированный'].asMap().entries.map((entry) {
+                                    final index = entry.key;
+                                    final type = entry.value;
+                                    return Column(
+                                      children: [
+                                        _buildRouteTypeItem(type),
+                                        if (index < 2) const SizedBox(height: 12),
+                                      ],
+                                    );
+                                  }).toList()
+                                : widget.routeTypes.asMap().entries.map((entry) {
+                                    final index = entry.key;
+                                    final routeType = entry.value;
+                                    final typeName = routeType['name'] as String;
+                                    return Column(
+                                      children: [
+                                        _buildRouteTypeItem(typeName),
+                                        if (index < widget.routeTypes.length - 1) const SizedBox(height: 12),
+                                      ],
+                                    );
+                                  }).toList(),
                           ),
                         ),
                         const SizedBox(height: 24),

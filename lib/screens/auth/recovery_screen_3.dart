@@ -5,9 +5,10 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
-import '../../services/api_service_static.dart';
 import '../../../services/auth_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/di/injection_container.dart' as di;
+import '../../../services/strapi_service.dart';
 import 'package:tropanartov/features/home/presentation/pages/home_page.dart';
 import 'login_screen.dart';
 
@@ -64,14 +65,18 @@ class _AuthRecoveryThreeScreenState extends State<AuthRecoveryThreeScreen> {
     try {
       final newPassword = _newpasswordController.text.trim();
       
-      // 1. Сбрасываем пароль
-      await ApiService.resetPassword(widget.resetToken, newPassword);
+      // ✅ МИГРАЦИЯ: Сбрасываем пароль через Strapi
+      final strapiService = di.sl<StrapiService>();
+      await strapiService.resetPassword(
+        code: widget.resetToken,
+        password: newPassword,
+        passwordConfirmation: newPassword,
+      );
 
-      // 2. Автоматически входим с новым паролем
+      // 2. Автоматически входим с новым паролем через Strapi
       try {
-        final loginResponse = await ApiService.login(widget.email, newPassword);
-        await AuthService.saveToken(loginResponse.token);
-        await AuthService.saveUser(loginResponse.user);
+        final loginResponse = await AuthService.login(widget.email, newPassword);
+        // Токены и пользователь уже сохранены в AuthService.login()
 
         if (mounted) {
           // Показываем сообщение об успехе
@@ -131,10 +136,14 @@ class _AuthRecoveryThreeScreenState extends State<AuthRecoveryThreeScreen> {
 
   @override
   void dispose() {
-    _newpasswordController.dispose();
-    _newpasswordreturnController.dispose();
-    _passwordFocusNode.dispose();
-    _confirmPasswordFocusNode.dispose();
+    try {
+      _newpasswordController.dispose();
+      _newpasswordreturnController.dispose();
+      _passwordFocusNode.dispose();
+      _confirmPasswordFocusNode.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 

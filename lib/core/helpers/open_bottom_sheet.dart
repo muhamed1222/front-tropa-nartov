@@ -8,27 +8,30 @@ Future<T?> openBottomSheet<T>(BuildContext context, Widget Function(ScrollContro
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black,
-    // Добавляем ключ, чтобы bottom sheet пересоздавался каждый раз
+    // ✅ ОПТИМИЗАЦИЯ: Убран ValueKey, который вызывал пересоздание виджета при каждом открытии
     builder: (
       _,
     ) {
-      return DraggableScrollableSheet(
-        key: ValueKey(DateTime.now().millisecondsSinceEpoch),
+      return RepaintBoundary(
+        child: DraggableScrollableSheet(
         initialChildSize: 1,
         minChildSize: 0.2,
         maxChildSize: 1,
         snap: true,
         snapSizes: const [0.2, 1.0],
         builder: (_, controller) {
-          return ClipPath(
+            return RepaintBoundary(
+              child: ClipPath(
             clipper: SmoothBorderClipper(radius: 20),
             child: Container(
             padding: const EdgeInsets.only(left: 14, right: 14, top: 8),
               color: Colors.white,
               child: childBuilder(controller),
+                ),
             ),
           );
         },
+        ),
       );
     },
   );

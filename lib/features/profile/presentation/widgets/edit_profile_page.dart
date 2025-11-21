@@ -6,12 +6,12 @@ import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../../models/api_models.dart';
 import '../../../../screens/auth/login_screen.dart';
-import '../../../../services/api_service_static.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../core/di/injection_container.dart' as di;
+import '../../../../services/strapi_service.dart';
 import '../../../../config/app_config.dart';
 import '../../../../utils/smooth_border_radius.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -128,7 +128,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // Метод для загрузки аватарки на сервер
+  // Метод для загрузки аватарки на сервер через Strapi
+  /// 
+  /// ✅ МИГРАЦИЯ: Использует Strapi Media Library вместо Go API
   Future<void> _uploadAvatar(File imageFile) async {
     setState(() {
       _isAvatarLoading = true;
@@ -140,41 +142,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
         throw Exception('Пользователь не авторизован');
       }
 
+      final user = await AuthService.getUser();
+      if (user == null) {
+        throw Exception('Пользователь не найден');
+      }
 
-      // Создаем multipart запрос
-      var request = http.MultipartRequest(
-          'POST',
-          Uri.parse('${AppConfig.baseUrl}/auth/upload-avatar')
+      // ✅ МИГРАЦИЯ: Используем StrapiService для загрузки аватарки
+      final strapiService = di.sl<StrapiService>();
+      final response = await strapiService.uploadAvatar(
+        filePath: imageFile.path,
+        jwt: token,
+        userId: user.id,
       );
 
-      // Добавляем заголовок авторизации
-      request.headers['Authorization'] = 'Bearer $token';
-
-      // Добавляем файл
-      request.files.add(
-          await http.MultipartFile.fromPath(
-            'avatar',
-            imageFile.path,
-            filename: 'avatar.jpg',
-          )
-      );
-
-
-      // Отправляем запрос
-      var response = await request.send();
-
-
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final jsonResponse = json.decode(responseData);
-
-
-        // Получаем URL аватарки из ответа
-        final avatarUrlFromServer = jsonResponse['avatar_url'];
-        if (avatarUrlFromServer != null) {
+      // Strapi возвращает массив загруженных файлов
+      if (response['data'] != null && (response['data'] as List).isNotEmpty) {
+        final uploadedFile = (response['data'] as List).first;
+        final fileUrl = uploadedFile['url'] as String?;
+        
+        if (fileUrl != null) {
           // Формируем полный URL
-          final fullAvatarUrl = '${AppConfig.baseUrl}$avatarUrlFromServer';
-
+          final fullAvatarUrl = '${AppConfig.baseUrl}$fileUrl';
 
           setState(() {
             _avatarUrl = fullAvatarUrl;
@@ -185,18 +173,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
           try {
             final updatedUser = await AuthService.getProfile();
             await AuthService.saveUser(updatedUser);
-
           } catch (e, stackTrace) {
             AppLogger.error('Update local user data after avatar upload', e, stackTrace);
           }
-
         } else {
           throw Exception('URL аватарки не получен от сервера');
         }
       } else {
-        final errorResponse = await response.stream.bytesToString();
-        AppLogger.apiError('/auth/upload-avatar', Exception('Status: ${response.statusCode}, Response: $errorResponse'));
-        throw Exception('Ошибка загрузки аватарки: ${response.statusCode}');
+        throw Exception('Файл не был загружен');
       }
     } catch (e, stackTrace) {
       AppLogger.error('Upload avatar', e, stackTrace);
@@ -264,7 +248,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  // Метод для удаления аватарки
+  // Метод для удаления аватарки через Strapi
+  /// 
+  /// ✅ МИГРАЦИЯ: Использует Strapi Media Library вместо Go API
+  /// 
+  /// Примечание: Для удаления нужно получить fileId из данных пользователя
+  /// Если аватарка связана с пользователем через поле avatar, можно получить его ID
   Future<void> _deleteAvatar() async {
     setState(() {
       _isAvatarLoading = true;
@@ -276,26 +265,35 @@ class _EditProfilePageState extends State<EditProfilePage> {
         throw Exception('Пользователь не авторизован');
       }
 
-      final response = await http.delete(
-        Uri.parse('${AppConfig.baseUrl}/auth/delete-avatar'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _avatarImage = null;
-          _avatarUrl = null;
-        });
-
-        // Обновляем данные пользователя в локальном хранилище
-        final updatedUser = await AuthService.getProfile();
-        await AuthService.saveUser(updatedUser);
-
-      } else {
-        throw Exception('Ошибка удаления аватарки: ${response.statusCode}');
+      final user = await AuthService.getUser();
+      if (user == null) {
+        throw Exception('Пользователь не найден');
       }
+
+      // ✅ МИГРАЦИЯ: Получаем текущего пользователя из Strapi для получения fileId аватарки
+      final strapiService = di.sl<StrapiService>();
+      final currentUserData = await strapiService.getCurrentUser(token);
+      
+      // Проверяем, есть ли аватарка
+      final avatarData = currentUserData['avatar'];
+      if (avatarData != null && avatarData['id'] != null) {
+        final fileId = avatarData['id'] as int;
+        
+        // Удаляем файл через Strapi
+        await strapiService.deleteAvatar(
+          fileId: fileId,
+          jwt: token,
+        );
+      }
+
+      setState(() {
+        _avatarImage = null;
+        _avatarUrl = null;
+      });
+
+      // Обновляем данные пользователя в локальном хранилище
+      final updatedUser = await AuthService.getProfile();
+      await AuthService.saveUser(updatedUser);
     } catch (e, stackTrace) {
       AppLogger.error('Delete avatar', e, stackTrace);
       if (mounted) {
@@ -791,9 +789,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
+    try {
+      _firstNameController.dispose();
+      _lastNameController.dispose();
+      _emailController.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 }

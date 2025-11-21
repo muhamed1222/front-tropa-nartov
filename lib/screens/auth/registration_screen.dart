@@ -5,8 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/home/presentation/pages/home_page.dart';
 import 'login_screen.dart';
-import '../../services/api_service_static.dart';
-import '../../services/api_service.dart' show ApiServiceDio;
 import '../../../services/auth_service.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_design_system.dart';
@@ -15,7 +13,6 @@ import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
 import '../../../core/errors/api_error_handler.dart';
-import '../../../core/di/injection_container.dart';
 
 class AuthRegistrationScreen extends StatefulWidget {
   const AuthRegistrationScreen({super.key});
@@ -68,16 +65,20 @@ class _AuthRegistrationScreenState extends State<AuthRegistrationScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _nameFocusNode.dispose();
-    _emailFocusNode.dispose();
-    _passwordFocusNode.dispose();
-    _confirmPasswordFocusNode.dispose();
-    _termsRecognizer.dispose();
-    _privacyRecognizer.dispose();
+    try {
+      _nameController.dispose();
+      _emailController.dispose();
+      _passwordController.dispose();
+      _confirmPasswordController.dispose();
+      _nameFocusNode.dispose();
+      _emailFocusNode.dispose();
+      _passwordFocusNode.dispose();
+      _confirmPasswordFocusNode.dispose();
+      _termsRecognizer.dispose();
+      _privacyRecognizer.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 
@@ -162,49 +163,23 @@ class _AuthRegistrationScreenState extends State<AuthRegistrationScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
-      // Регистрация через новый ApiServiceDio
-      final apiService = sl<ApiServiceDio>();
-      await apiService.register(name, email, password);
+      // ✅ МИГРАЦИЯ: Регистрация через AuthService с Strapi
+      // Strapi автоматически возвращает JWT токен после регистрации, поэтому не нужно делать отдельный логин
+      await AuthService.register(
+        username: name,
+        email: email,
+        password: password,
+      );
 
-      // Автоматический вход после регистрации
-      try {
-        final apiService = sl<ApiServiceDio>();
-        final loginResponse = await apiService.login(email, password);
+      // Токены и пользователь уже сохранены в AuthService.register()
+      await AuthService.saveLastEmail(email);
 
-        // Сохраняем токены и пользователя
-        await AuthService.saveToken(loginResponse.token);
-        if (loginResponse.refreshToken != null) {
-          await AuthService.saveRefreshToken(loginResponse.refreshToken!);
-        }
-        await AuthService.saveUser(loginResponse.user);
-        await AuthService.saveLastEmail(email);
-
-        // Переход на главный экран
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
-        }
-      } catch (loginError) {
-        // Если вход не удался, показываем сообщение и переходим на экран входа
-        if (mounted) {
-          final errorMessage = loginError is ApiException 
-              ? loginError.message 
-              : 'Регистрация успешна. Пожалуйста, войдите в аккаунт.';
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: AuthConstants.errorColor,
-            ),
-          );
-          
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const AuthLoginScreen()),
-          );
-        }
+      // Переход на главный экран
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
       }
     } catch (e) {
       // Ошибка регистрации

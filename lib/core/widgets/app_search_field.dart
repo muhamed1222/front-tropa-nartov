@@ -46,39 +46,61 @@ class _AppSearchFieldState extends State<AppSearchField> {
 
   @override
   void dispose() {
-    if (widget.controller == null) {
-      _controller.dispose();
-    } else {
+    try {
+      // Сначала удаляем слушатели
       _controller.removeListener(_onTextChange);
-    }
-    if (widget.focusNode == null) {
-      _focusNode.dispose();
-    } else {
       _focusNode.removeListener(_onFocusChange);
+      
+      // Потом dispose() только если создавали сами
+      if (widget.controller == null) {
+        _controller.dispose();
+      }
+      if (widget.focusNode == null) {
+        _focusNode.dispose();
+      }
+    } catch (e) {
+      // Игнорируем ошибки при dispose
     }
+    
     super.dispose();
   }
 
   void _onFocusChange() {
-    setState(() {
-      _isFocused = _focusNode.hasFocus;
-    });
+    if (mounted) {
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+    }
   }
 
   void _onTextChange() {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _clearText() {
-    _controller.clear();
-    if (widget.onChanged != null) {
-      widget.onChanged!('');
+    if (!mounted) return;
+    try {
+      _controller.clear();
+      if (widget.onChanged != null) {
+        widget.onChanged!('');
+      }
+    } catch (e) {
+      // Контроллер мог быть disposed, игнорируем ошибку
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasText = _controller.text.isNotEmpty;
+    // Безопасная проверка текста контроллера
+    bool hasText = false;
+    try {
+      hasText = _controller.text.isNotEmpty;
+    } catch (e) {
+      // Контроллер мог быть disposed, игнорируем ошибку
+      hasText = false;
+    }
 
     return SmoothContainer(
       height: 48.0, // По дизайну из Figma (4px padding top + 4px padding bottom + 40px button)

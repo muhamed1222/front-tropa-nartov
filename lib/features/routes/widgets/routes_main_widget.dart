@@ -3,20 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/api_models.dart' hide Image;
 import '../../../core/constants/app_design_system.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../../core/utils/auth_helper.dart';
+import '../../../core/utils/logger.dart';
 import '../../../core/di/injection_container.dart' as di;
-import '../../../services/api_service_static.dart';
-import '../../../services/api_service.dart' show ApiServiceDio;
 import '../../../services/auth_service.dart';
+import '../../../services/strapi_service.dart';
+import '../data/datasources/routes_strapi_datasource.dart';
 import '../../home/presentation/bloc/home_bloc.dart';
 import '../../home/domain/entities/place.dart' as home_entities;
 import '../../../shared/domain/entities/image.dart' as shared_entities;
 import '../../../shared/domain/entities/review.dart' as shared_entities_review;
 import '../../home/presentation/widgets/rating_dialog.dart';
+import '../../places/data/datasources/filters_datasource.dart';
 import '../presentation/bloc/routes_bloc.dart';
 import 'routes_filter_widget.dart';
 
@@ -39,10 +42,16 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
   // Контроллер для скролла карточек
   late ScrollController _cardsScrollController;
 
+  // Типы маршрутов из Strapi
+  List<Map<String, dynamic>> _routeTypes = [];
+
   @override
   void initState() {
     super.initState();
     _cardsScrollController = widget.scrollController ?? ScrollController();
+
+    // Загружаем типы маршрутов из Strapi
+    _loadRouteTypes();
 
     // Маршруты загружаются через BLoC при создании BlocProvider
 
@@ -56,12 +65,37 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
     );
   }
 
+  /// Загрузить типы маршрутов из Strapi
+  Future<void> _loadRouteTypes() async {
+    try {
+      final filtersDatasource = FiltersDatasource(strapiService: di.sl<StrapiService>());
+      final routeTypes = await filtersDatasource.getRouteTypes();
+      
+      setState(() {
+        _routeTypes = routeTypes;
+      });
+      AppLogger.debug('✅ Типы маршрутов загружены из Strapi: ${_routeTypes.length}');
+    } catch (e) {
+      AppLogger.debug('❌ Ошибка загрузки типов маршрутов: $e');
+      AppLogger.debug('⚠️ Используются fallback типы (Пеший, Авто)');
+    }
+  }
+
   @override
   void dispose() {
-    _searchController.dispose();
+    try {
+      _searchController.dispose();
+    } catch (e) {
+      // Игнорируем ошибки dispose
+    }
+    
     // Не удаляем _cardsScrollController если он передан извне
     if (widget.scrollController == null) {
-      _cardsScrollController.dispose();
+      try {
+        _cardsScrollController.dispose();
+      } catch (e) {
+        // Игнорируем ошибки dispose
+      }
     }
 
     // Восстанавливаем темный status bar при закрытии
@@ -106,6 +140,7 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
         builder: (context, scrollController) => RoutesFilterWidget(
           initialFilters: state.filters,
           scrollController: scrollController,
+          routeTypes: _routeTypes, // Передаем типы из Strapi
           onFiltersApplied: (RouteFilters newFilters) {
             context.read<RoutesBloc>().add(ApplyFilters(newFilters));
           },
@@ -452,12 +487,21 @@ class _RoutesMainWidgetState extends State<RoutesMainWidget> {
                           children: [
                             // Фоновая картинка маршрута на ВСЁ ПРОСТРАНСТВО
                             if (imageUrl.isNotEmpty)
-                              Image.network(
-                                imageUrl,
+                              CachedNetworkImage(
+                                imageUrl: imageUrl,
                                 width: double.infinity,
                                 height: double.infinity,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
+                                placeholder: (context, url) => Container(
+                                  color: AppDesignSystem.blackColor,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppDesignSystem.primaryColor,
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) {
                                   return Container(
                                     color: AppDesignSystem.blackColor,
                                   );
@@ -739,7 +783,8 @@ class _RouteDetailWidgetState extends State<RouteDetailWidget> {
   bool _isLoadingReviews = false;
   bool _reviewsLoaded = false;
   String? _reviewsError;
-  final ApiServiceDio _apiService = di.sl<ApiServiceDio>();
+  final StrapiService _strapiService = di.sl<StrapiService>();
+  final RoutesStrapiDatasource _routesDatasource = RoutesStrapiDatasource();
 
   // Данные маршрута
   AppRoute? _fullRoute; // Полные данные маршрута с местами
@@ -765,10 +810,10 @@ class _RouteDetailWidgetState extends State<RouteDetailWidget> {
     });
 
     try {
-      // Загружаем полные данные маршрута
-      final route = await _apiService.getRouteById(widget.route.id);
+      // Загружаем полные данные маршрута из Strapi
+      final route = await _routesDatasource.getRouteById(widget.route.id);
       
-      if (mounted) {
+      if (route != null && mounted) {
         setState(() {
           _fullRoute = route;
         });
@@ -776,12 +821,13 @@ class _RouteDetailWidgetState extends State<RouteDetailWidget> {
         // Загружаем статусы посещений для всех мест маршрута
         if (route.places != null && route.places!.isNotEmpty) {
           final placeIds = route.places!.map((p) => p.placeId).toList();
-          final token = await AuthService.getToken();
-          final visitStatus = await _apiService.getPlacesVisitStatus(placeIds, token);
-          
-          if (mounted) {
-            setState(() {
-              _placesVisitStatus = visitStatus;
+          final userId = await _strapiService.getCurrentUserId();
+          if (userId != null) {
+            final visitStatus = await _strapiService.getPlacesVisitStatus(placeIds, userId);
+            
+            if (mounted) {
+              setState(() {
+                _placesVisitStatus = visitStatus;
             });
           }
         }
@@ -810,7 +856,24 @@ class _RouteDetailWidgetState extends State<RouteDetailWidget> {
     });
 
     try {
-      final reviews = await _apiService.getReviewsForRoute(widget.route.id);
+      // Загружаем отзывы из Strapi
+      final strapiReviews = await _strapiService.getRouteReviews(widget.route.id);
+      
+      // Конвертируем StrapiReview в Review
+      final reviews = strapiReviews.map((sr) => Review(
+        id: sr.id,
+        userId: int.tryParse(sr.userId) ?? 0,
+        placeId: sr.place?.id,
+        routeId: sr.route?.id,
+        rating: sr.rating.toInt(),
+        comment: sr.comment,
+        photos: sr.photos.map((p) => p.url).toList(),
+        createdAt: sr.createdAt,
+        updatedAt: sr.updatedAt,
+        userName: 'Пользователь', // Strapi не хранит имя в отзыве
+        userAvatar: null,
+      )).toList();
+      
       if (mounted) {
         setState(() {
           _reviews = reviews;
@@ -1544,12 +1607,21 @@ class _RouteDetailWidgetState extends State<RouteDetailWidget> {
                       height: 85,
                       color: AppDesignSystem.greyMedium,
                       child: place.images.isNotEmpty
-                          ? Image.network(
-                              place.images.first.url,
+                          ? CachedNetworkImage(
+                              imageUrl: place.images.first.url,
                               width: 100,
                               height: 85,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
+                              placeholder: (context, url) => Container(
+                                color: AppDesignSystem.greyMedium,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppDesignSystem.primaryColor,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) =>
                                   const Icon(Icons.image,
                                       color: AppDesignSystem.whiteColor),
                             )

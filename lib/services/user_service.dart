@@ -1,17 +1,13 @@
-import 'api_service.dart';
 import 'auth_service_instance.dart';
 import '../models/api_models.dart';
 
 /// UserService как instance-based класс для поддержки DI
 class UserService {
-  final ApiServiceDio _apiService;
   final AuthService _authService;
 
   UserService({
-    required ApiServiceDio apiService,
     required AuthService authService,
-  })  : _apiService = apiService,
-        _authService = authService;
+  }) : _authService = authService;
 
   /// Получение токена через AuthService
   Future<String?> getToken() async {
@@ -20,7 +16,7 @@ class UserService {
 
   /// Получение данных профиля пользователя
   Future<User> getUserProfile() async {
-    return await _apiService.getProfile(null); // null - AuthInterceptor добавит токен автоматически
+    return await _authService.getProfile();
   }
 
   /// Получение email текущего пользователя (для проверки пароля)

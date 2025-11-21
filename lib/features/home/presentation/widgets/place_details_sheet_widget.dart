@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:tropanartov/features/home/domain/entities/place.dart';
 import 'package:tropanartov/features/home/presentation/bloc/home_bloc.dart';
 import 'package:tropanartov/features/home/presentation/widgets/rating_dialog.dart';
-import '../../../../services/api_service_static.dart';
-import 'package:tropanartov/services/auth_service.dart';
 import 'package:tropanartov/models/api_models.dart' hide Image, Place;
 import 'dart:ui' as ui;
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../core/widgets/image_carousel_indicator.dart';
-import '../../../../services/api_service.dart' show ApiServiceDio;
+import '../../../../services/strapi_service.dart';
 import '../../../../core/di/injection_container.dart' as di;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -70,7 +69,8 @@ class PlaceDetailsSheet extends StatefulWidget {
 }
 
 class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
-  double _sheetExtent = 0.5; // Текущий размер sheet (от 0.0 до 1.0)
+  // ✅ ОПТИМИЗАЦИЯ: Используем ValueNotifier вместо setState для анимационных значений
+  final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0.5); // Текущий размер sheet (от 0.0 до 1.0)
   static const double _closeThreshold = 0.12; // Порог для закрытия окна
   final DraggableScrollableController _sheetController = DraggableScrollableController(); // Контроллер для программного управления sheet
   bool _isInitialAnimation = true; // true = идёт анимация появления
@@ -101,7 +101,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _sheetController.isAttached) {
         final targetSize = widget.fullScreen ? 1.0 : 0.5;
-        _sheetExtent = targetSize;
+        _sheetExtent.value = targetSize; // ✅ ОПТИМИЗАЦИЯ: ValueNotifier
         _sheetController
             .animateTo(
           targetSize,
@@ -125,18 +125,18 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
   void dispose() {
     _imagePageController.dispose();
     _sheetController.dispose();
+    _sheetExtent.dispose(); // ✅ ОПТИМИЗАЦИЯ: Очистка ValueNotifier
     super.dispose();
   }
   
-  // Загружает статус посещенного места
+  // Загружает статус посещенного места из Strapi
   Future<void> _loadVisitedStatus() async {
     try {
-      final token = await AuthService.getToken();
-      if (token == null) return;
+      final strapiService = di.sl<StrapiService>();
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) return;
       
-      final apiService = di.sl<ApiServiceDio>();
-      final visitedPlaces = await apiService.getUserActivityPlaces(token);
-      final isVisited = visitedPlaces.any((item) => item['place_id'] == widget.place.id);
+      final isVisited = await strapiService.hasVisited(userId, placeId: widget.place.id);
       
       if (mounted) {
         setState(() {
@@ -145,44 +145,56 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
       }
     } catch (e) {
       // Игнорируем ошибку
+      print('Error loading visited status: $e');
     }
   }
 
-  // Метод для проверки статуса избранного
+  // Метод для проверки статуса избранного из Strapi
   Future<void> _checkFavoriteStatus() async {
-    final token = await AuthService.getToken();
-    if (token != null) {
-      try {
-        final isFavorite = await ApiService.isPlaceFavorite(widget.place.id, token);
-        if (mounted) {
-          setState(() {
-            _isBookmarked = isFavorite;
-          });
-        }
-      } catch (e) {
-        // print('Error checking favorite status: $e');
+    try {
+      final strapiService = di.sl<StrapiService>();
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) return;
+      
+      final isFavorite = await strapiService.isFavorite(userId, placeId: widget.place.id);
+      if (mounted) {
+        setState(() {
+          _isBookmarked = isFavorite;
+        });
       }
+    } catch (e) {
+      // Игнорируем ошибку
+      print('Error checking favorite status: $e');
     }
   }
 
-  // Метод для переключения избранного
+  // Метод для переключения избранного через Strapi
   Future<void> _toggleFavorite() async {
-    final token = await AuthService.getToken();
-    if (token == null) {
-
-      return;
-    }
-
     try {
+      final strapiService = di.sl<StrapiService>();
+      final userId = await strapiService.getCurrentUserId();
+      if (userId == null) {
+        // Показываем сообщение что нужно авторизоваться
+        return;
+      }
+
       if (_isBookmarked) {
-        await ApiService.removePlaceFromFavorites(widget.place.id, token);
+        // Удаляем из избранного
+        await strapiService.removeFromFavoritesByPlaceOrRoute(
+          userId: userId,
+          placeId: widget.place.id,
+        );
         if (mounted) {
           setState(() {
             _isBookmarked = false;
           });
         }
       } else {
-        await ApiService.addPlaceToFavorites(widget.place.id, token);
+        // Добавляем в избранное
+        await strapiService.addToFavorites(
+          userId: userId,
+          placeId: widget.place.id,
+        );
         if (mounted) {
           setState(() {
             _isBookmarked = true;
@@ -190,11 +202,12 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
         }
       }
     } catch (e) {
-      // print('Error toggling favorite: $e');
+      print('Error toggling favorite: $e');
+      // Можно показать ошибку пользователю
     }
   }
 
-  // Метод для загрузки отзывов
+  // Метод для загрузки отзывов из Strapi
   Future<void> _loadReviews() async {
     if (_isLoadingReviews || _reviewsLoaded) return;
 
@@ -206,11 +219,25 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     }
 
     try {
-      final reviews = await ApiService.getPlaceReviews(widget.place.id);
+      final strapiService = di.sl<StrapiService>();
+      final strapiReviews = await strapiService.getPlaceReviews(widget.place.id);
+      
+      // Конвертируем StrapiReview в Review для совместимости
+      final reviews = strapiReviews.map((strapiReview) {
+        return Review(
+          id: strapiReview.id,
+          text: strapiReview.text,
+          rating: strapiReview.rating,
+          createdAt: strapiReview.createdAt.toIso8601String(),
+          updatedAt: strapiReview.updatedAt.toIso8601String(),
+          isActive: true,
+          authorName: 'Пользователь', // Пока нет пользователей в Strapi
+        );
+      }).toList();
 
       if (mounted) {
         setState(() {
-          _reviews = reviews;
+          _reviews = reviews as List<Review>;
           _reviewsLoaded = true;
         });
       }
@@ -220,7 +247,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
           _reviewsError = e.toString();
         });
       }
-      // print('Error loading reviews: $e');
+      print('[ERROR] Error loading reviews from Strapi: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -239,10 +266,25 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
     }
 
     try {
-      final reviews = await ApiService.getPlaceReviews(widget.place.id);
+      final strapiService = di.sl<StrapiService>();
+      final strapiReviews = await strapiService.getPlaceReviews(widget.place.id);
+      
+      // Конвертируем StrapiReview в Review для совместимости
+      final reviews = strapiReviews.map((strapiReview) {
+        return Review(
+          id: strapiReview.id,
+          text: strapiReview.text,
+          rating: strapiReview.rating,
+          createdAt: strapiReview.createdAt.toIso8601String(),
+          updatedAt: strapiReview.updatedAt.toIso8601String(),
+          isActive: true,
+          authorName: 'Пользователь', // Пока нет пользователей в Strapi
+        );
+      }).toList();
+
       if (mounted) {
         setState(() {
-          _reviews = reviews;
+          _reviews = reviews as List<Review>;
         });
       }
     } catch (e) {
@@ -251,7 +293,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
           _reviewsError = e.toString();
         });
       }
-      // print('Error refreshing reviews: $e');
+      print('[ERROR] Error refreshing reviews from Strapi: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -519,6 +561,11 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ ОПТИМИЗАЦИЯ: Вычисляем константы один раз вне builder
+    final h = MediaQuery.of(context).size.height;
+    final double minImg = h * 0.15;
+    final double maxImg = h * 0.35;
+
     return DraggableScrollableSheet(
       controller: _sheetController,
       initialChildSize: widget.fullScreen ? 1.0 : 0.0,
@@ -527,23 +574,14 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
       snap: true,
       snapSizes: widget.fullScreen ? const [1.0] : const [0.5, 1.0],
       builder: (context, scrollController) {
-        final h = MediaQuery.of(context).size.height;
-        final double minImg = h * 0.15;
-        final double maxImg = h * 0.35;
-
-        final double t = ((_sheetExtent - 0.5) / (1.0 - 0.5)).clamp(0.0, 1.0);
-
-        final double imageHeight = ui.lerpDouble(minImg, maxImg, t)!;
-
-        // Интерполяция радиуса закругления для фото: от borderRadiusLarge (50%) до 0 (100%)
-        final double imageBorderRadius = ui.lerpDouble(AppDesignSystem.borderRadiusLarge, 0.0, t)!;
-
         return NotificationListener<DraggableScrollableNotification>(
           onNotification: (notification) {
-            setState(() => _sheetExtent = notification.extent);
-            // Логика закрытия полностью удалена, чтобы использовать стандартное поведение isDismissible
+            // ✅ ОПТИМИЗАЦИЯ: Используем ValueNotifier вместо setState
+            // Это предотвращает полную перерисовку виджета при каждом жесте (60 раз/сек)
+            _sheetExtent.value = notification.extent;
             return false;
           },
+          child: RepaintBoundary(
           child: Container(
             decoration: BoxDecoration(
               color: AppDesignSystem.backgroundColor,
@@ -554,80 +592,113 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
             ),
             child: Stack(
               children: [
-                CustomScrollView(
-                  controller: scrollController,
-                  slivers: [
+                  // ✅ ОПТИМИЗАЦИЯ: Статический контент вынесен из ValueListenableBuilder
+                  // CustomScrollView не перерисовывается при изменении extent
+                  CustomScrollView(
+                    controller: scrollController,
+                    slivers: [
+                      // ═══════════════════════════════════════════════════════════════
+                      // 📸 БЛОК 1: ФОТОГРАФИИ (только анимируемая часть внутри ValueListenableBuilder)
+                      // ═══════════════════════════════════════════════════════════════
+                      SliverToBoxAdapter(
+                        child: ValueListenableBuilder<double>(
+                  valueListenable: _sheetExtent,
+                  builder: (context, sheetExtent, child) {
+                    // Вычисляем анимационные значения на основе текущего extent
+                    final double t = ((sheetExtent - 0.5) / (1.0 - 0.5)).clamp(0.0, 1.0);
+                    final double imageHeight = ui.lerpDouble(minImg, maxImg, t)!;
+                    final double imageBorderRadius = ui.lerpDouble(AppDesignSystem.borderRadiusLarge, 0.0, t)!;
+
+                            return RepaintBoundary(
+                              child: SizedBox(
+                                height: imageHeight,
+                                child: _buildImageSection(imageBorderRadius, sheetExtent),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      
                     // ═══════════════════════════════════════════════════════════════
-                    // 📸 БЛОК 1: ФОТОГРАФИИ
-                    // ═══════════════════════════════════════════════════════════════
-// Содержит:
-// - Карусель изображений (PageView)
-// - Градиент поверх фото
-// - Bookmark кнопка (верх справа)
-// - Индикатор пагинации (низ слева)
-// - Плашка "Вы уже были здесь" (низ справа)
-// - Белая полоска перехода
+                      // 📄 БЛОК 2: КОНТЕНТ (статический, не перерисовывается)
                     // ═══════════════════════════════════════════════════════════════
                     SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: imageHeight,
-                        child: Stack(
-                          fit: StackFit.expand,
+                        child: RepaintBoundary(
+                          child: Container(
+                            color: AppDesignSystem.backgroundColor,
+                            padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Карусель изображений с изменяющимся закруглением
-                            () {
-                              final images = widget.place.images;
-                              if (images.isNotEmpty) {
-                                return ClipRRect(
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(imageBorderRadius),
-                                    topRight: Radius.circular(imageBorderRadius),
+                                // Drag индикатор
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: AppDesignSystem.spacingMedium),
+                                    child: DragIndicator(
+                                      color: AppDesignSystem.greyColor,
+                                      borderRadius: AppDesignSystem.borderRadiusTiny,
+                                      padding: EdgeInsets.zero,
+                                    ),
                                   ),
-                                  child: PageView.builder(
-                                    controller: _imagePageController,
-                                    itemCount: images.length,
-                                    onPageChanged: (index) {
-                                      if (mounted) {
-                                        setState(() {
-                                          _currentImageIndex = index;
-                                        });
-                                      }
-                                    },
-                                    itemBuilder: (context, index) {
-                                      return Image.network(
-                                        images[index].url,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => Container(
-                                          color: AppDesignSystem.greyLight,
-                                          child: Icon(
-                                            Icons.image_not_supported,
-                                            size: 50,
-                                            color: AppDesignSystem.textColorPrimary,
-                                          ),
+                                ),
+                                // Название и рейтинг
+                                PlaceNameAndRatingWidget(widget: widget),
+                                SizedBox(height: AppDesignSystem.spacingSmall + 1),
+                                PlaceTypeWidget(widget: widget),
+                                SizedBox(height: AppDesignSystem.spacingXLarge),
+                                _buildTabs(),
+                                SizedBox(height: AppDesignSystem.spacingLarge),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: RepaintBoundary(
+                          child: Container(
+                            color: AppDesignSystem.backgroundColor,
+                            padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.paddingHorizontal),
+                            child: _buildTabContent(),
                                         ),
-                                      );
-                                    },
+                        ),
                                   ),
-                                );
-                              } else {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(imageBorderRadius),
-                                      topRight: Radius.circular(imageBorderRadius),
-                                    ),
-                                    color: AppDesignSystem.greyLight,
+                      // Добавляем отступ для кнопок
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: AppDesignSystem.buttonHeight + AppDesignSystem.paddingHorizontal * 2),
+                      ),
+                    ],
+                  ),
+                  
+                  // ═══════════════════════════════════════════════════════════════
+                  // 🎯 БЛОК 3: ПАНЕЛЬ ДЕЙСТВИЙ (статический, не перерисовывается)
+                  // ═══════════════════════════════════════════════════════════════
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: RepaintBoundary(
+                      child: _buildActionButtonsPanel(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ ОПТИМИЗАЦИЯ: Вынесен отдельный метод для секции изображений
+  // Это позволяет изолировать перерисовку только анимируемой части
+  Widget _buildImageSection(double imageBorderRadius, double sheetExtent) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Карусель изображений с изменяющимся закруглением
+        RepaintBoundary(
+          child: _buildImageCarousel(imageBorderRadius),
                                   ),
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.image_not_supported,
-                                      size: 50,
-                                      color: AppDesignSystem.textColorPrimary,
-                                    ),
-                                  ),
-                                );
-                              }
-                            }(),
                             // Градиент поверх фото с тем же закруглением (пропускает touch-события)
                             IgnorePointer(
                               child: Container(
@@ -646,7 +717,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                               ),
                             ),
                             // Кнопка bookmark в правом верхнем углу (появляется только при полном открытии)
-                            if (_sheetExtent > 0.9)
+                            if (sheetExtent > 0.9)
                               Positioned(
                                 top: 53,
                                 right: AppDesignSystem.spacingLarge,
@@ -669,7 +740,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                               ),
                             
                             // Индикатор пагинации (левый нижний угол)
-                            if (_sheetExtent > 0.9 && widget.place.images.isNotEmpty)
+                            if (sheetExtent > 0.9 && widget.place.images.isNotEmpty)
                               Positioned(
                                 left: 14,
                                 bottom: 30,
@@ -680,7 +751,7 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                               ),
                             
                             // Плашка "Вы уже были здесь" (правый нижний угол)
-                            if (_sheetExtent > 0.9 && _isVisited)
+                            if (sheetExtent > 0.9 && _isVisited)
                               Positioned(
                                 right: 14,
                                 bottom: 30,
@@ -721,83 +792,73 @@ class _PlaceDetailsSheetState extends State<PlaceDetailsSheet> {
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                    ),
-                    
-                    // ═══════════════════════════════════════════════════════════════
-                    // 📄 БЛОК 2: КОНТЕНТ
-                    // ═══════════════════════════════════════════════════════════════
-                    // Содержит:
-                    // - Drag индикатор (по центру вверху)
-                    // - Название места и рейтинг
-                    // - Тег типа места (Достопримечательность и т.д.)
-                    // - Табы навигации (История / Обзор / Отзывы)
-                    // - Содержимое выбранного таба
-                    // - Отступ для панели действий
-                    // ═══════════════════════════════════════════════════════════════
-                    SliverToBoxAdapter(
-                      child: Container(
-                        color: AppDesignSystem.backgroundColor,
-                        padding: const EdgeInsets.all(AppDesignSystem.paddingHorizontal),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Drag индикатор
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: AppDesignSystem.spacingMedium),
-                                child: DragIndicator(
-                                  color: AppDesignSystem.greyColor,
-                                  borderRadius: AppDesignSystem.borderRadiusTiny,
-                                  padding: EdgeInsets.zero,
-                                ),
+    );
+  }
+
+  // ✅ ОПТИМИЗАЦИЯ: Вынесен отдельный метод для карусели изображений
+  // Использует CachedNetworkImage для кэширования и предотвращения перезагрузки
+  Widget _buildImageCarousel(double imageBorderRadius) {
+    final images = widget.place.images;
+    if (images.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(imageBorderRadius),
+            topRight: Radius.circular(imageBorderRadius),
+          ),
+          color: AppDesignSystem.greyLight,
+        ),
+        child: Center(
+          child: Icon(
+            Icons.image_not_supported,
+            size: 50,
+            color: AppDesignSystem.textColorPrimary,
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(imageBorderRadius),
+        topRight: Radius.circular(imageBorderRadius),
                               ),
-                            ),
-                            // Название и рейтинг
-                            PlaceNameAndRatingWidget(widget: widget),
-                            SizedBox(height: AppDesignSystem.spacingSmall + 1),
-                            PlaceTypeWidget(widget: widget),
-                            SizedBox(height: AppDesignSystem.spacingXLarge),
-                            _buildTabs(),
-                            SizedBox(height: AppDesignSystem.spacingLarge),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Container(
-                        color: AppDesignSystem.backgroundColor,
-                        padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.paddingHorizontal),
-                        child: _buildTabContent(),
-                      ),
-                    ),
-                    // Добавляем отступ для кнопок
-                    SliverToBoxAdapter(
-                      child: SizedBox(height: AppDesignSystem.buttonHeight + AppDesignSystem.paddingHorizontal * 2),
-                    ),
-                  ],
+      child: PageView.builder(
+        controller: _imagePageController,
+        itemCount: images.length,
+        onPageChanged: (index) {
+          if (mounted) {
+            setState(() {
+              _currentImageIndex = index;
+            });
+          }
+        },
+        itemBuilder: (context, index) {
+          // ✅ ОПТИМИЗАЦИЯ: Используем CachedNetworkImage вместо Image.network
+          // Это предотвращает перезагрузку изображений при каждом rebuild
+          return CachedNetworkImage(
+            imageUrl: images[index].url,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              color: AppDesignSystem.greyLight,
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppDesignSystem.primaryColor,
                 ),
-                
-                // ═══════════════════════════════════════════════════════════════
-                // 🎯 БЛОК 3: ПАНЕЛЬ ДЕЙСТВИЙ
-                // ═══════════════════════════════════════════════════════════════
-                // Содержит:
-                // - Кнопка "Оценить" (слева)
-                // - Кнопка "Маршрут" (справа)
-                // Фиксирована внизу экрана, всегда видна при прокрутке
-                // ═══════════════════════════════════════════════════════════════
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _buildActionButtonsPanel(context),
-                ),
-              ],
+              ),
+            ),
+            errorWidget: (context, url, error) => Container(
+              color: AppDesignSystem.greyLight,
+              child: Icon(
+                Icons.image_not_supported,
+                size: 50,
+                color: AppDesignSystem.textColorPrimary,
             ),
           ),
         );
       },
+      ),
     );
   }
   Widget _buildInfoRow(String iconAsset, String title, List<String> contents, bool showEmail) {

@@ -3,18 +3,17 @@ import 'environment_config.dart';
 
 /// Конфигурация приложения
 /// 
+/// ✅ МИГРАЦИЯ: Теперь использует только Strapi
 /// Использует EnvironmentConfig для получения настроек из переменных окружения
 class AppConfig {
-  /// IP адрес сервера
-  static String get serverIp => EnvironmentConfig.serverIp;
-  
-  /// Порт сервера
-  static int get serverPort => EnvironmentConfig.serverPort;
-  
-  /// Базовый URL API
+  /// Базовый URL Strapi API
   /// 
+  /// ✅ МИГРАЦИЯ: Использует только Strapi, Go API удален
   /// Использует EnvironmentConfig для определения URL в зависимости от окружения
-  static String get baseUrl => EnvironmentConfig.apiBaseUrl;
+  static String get baseUrl => EnvironmentConfig.strapiBaseUrl;
+  
+  /// Порт Strapi
+  static int get strapiPort => EnvironmentConfig.strapiPort;
 
   // Таймауты для HTTP запросов (в секундах)
   static const Duration connectTimeout = Duration(seconds: 10);

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:tropanartov/features/home/presentation/pages/home_page.dart';
 import 'package:tropanartov/screens/auth/recovery_screen_1.dart';
 import 'package:tropanartov/screens/auth/registration_screen.dart';
-import '../../services/api_service_static.dart';
-import '../../services/api_service.dart' show ApiServiceDio;
 import '../../../services/auth_service.dart';
 import '../../../core/errors/api_error_handler.dart';
 import '../../../core/constants/auth_constants.dart';
@@ -12,7 +10,6 @@ import '../../../core/constants/app_design_system.dart';
 import '../../../core/widgets/app_input_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../utils/auth_validator.dart';
-import '../../../core/di/injection_container.dart';
 
 class AuthLoginScreen extends StatefulWidget {
   const AuthLoginScreen({super.key});
@@ -52,10 +49,14 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _emailFocusNode.dispose();
-    _passwordFocusNode.dispose();
+    try {
+      _emailController.dispose();
+      _passwordController.dispose();
+      _emailFocusNode.dispose();
+      _passwordFocusNode.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 
@@ -98,17 +99,10 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
-      // Вызов API через новый ApiServiceDio
-      final apiService = sl<ApiServiceDio>();
-      final response = await apiService.login(email, password);
+      // ✅ МИГРАЦИЯ: Используем AuthService с Strapi вместо Go API
+      final response = await AuthService.login(email, password);
 
-      // Сохраняем токены и пользователя
-      await AuthService.saveToken(response.token);
-      if (response.refreshToken != null) {
-        await AuthService.saveRefreshToken(response.refreshToken!);
-      }
-      await AuthService.saveUser(response.user);
-      
+      // Токены и пользователь уже сохранены в AuthService.login()
       // Сохраняем email для автозаполнения
       await AuthService.saveLastEmail(email);
 

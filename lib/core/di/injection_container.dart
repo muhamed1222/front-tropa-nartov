@@ -10,11 +10,11 @@ import 'package:tropanartov/features/routes/presentation/bloc/routes_bloc.dart';
 import 'package:tropanartov/features/favourites/presentation/bloc/favourites_bloc.dart';
 import 'package:tropanartov/features/places/presentation/bloc/places_bloc.dart';
 import 'package:tropanartov/features/user/presentation/bloc/user_bloc.dart';
-import 'package:tropanartov/services/api_service_static.dart';
-import 'package:tropanartov/services/api_service.dart'; // ApiServiceDio
 import 'package:tropanartov/core/network/dio_client.dart';
 import 'package:tropanartov/services/auth_service_instance.dart';
 import 'package:tropanartov/services/user_service.dart';
+import 'package:tropanartov/services/strapi_service.dart';
+import 'package:tropanartov/config/environment_config.dart';
 
 final sl = GetIt.instance;
 
@@ -22,17 +22,14 @@ Future<void> init() async {
   // Dio клиент
   sl.registerLazySingleton(() => createDio());
 
-  // ApiService на Dio (импортируется из api_service.dart)
-  sl.registerLazySingleton(() => ApiServiceDio(dio: sl()));
+  // StrapiService для работы со Strapi CMS
+  sl.registerLazySingleton(() => StrapiService(baseUrl: EnvironmentConfig.strapiBaseUrl));
 
-  // AuthService (instance-based) - регистрируем AuthServiceInstance, а не wrapper
-  sl.registerLazySingleton(() => AuthService(apiService: sl<ApiServiceDio>()));
+  // AuthService использует StrapiService
+  sl.registerLazySingleton(() => AuthService(strapiService: sl<StrapiService>()));
 
-  // UserService (instance-based)
-  sl.registerLazySingleton(() => UserService(
-        apiService: sl(),
-        authService: sl(),
-      ));
+  // UserService использует только AuthService
+  sl.registerLazySingleton(() => UserService(authService: sl()));
 
   // BLoC
   sl.registerFactory(() => HomeBloc(
@@ -42,13 +39,13 @@ Future<void> init() async {
   ));
 
   sl.registerFactory(() => RoutesBloc(
-        apiService: sl<ApiServiceDio>(),
+        strapiService: sl<StrapiService>(),
         authService: sl<AuthService>(),
       ));
   
   sl.registerFactory(() => FavouritesBloc(
-        apiService: sl<ApiServiceDio>(),
         authService: sl<AuthService>(),
+        // StrapiService и datasources будут получены через di.sl внутри
       ));
 
   sl.registerFactory(() => PlacesBloc());

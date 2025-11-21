@@ -66,24 +66,35 @@ class _AppInputFieldState extends State<AppInputField> {
 
   @override
   void dispose() {
-    if (widget.focusNode == null) {
-      _focusNode.dispose();
-    } else {
+    try {
+      // Сначала удаляем слушатель
       _focusNode.removeListener(_onFocusChange);
+      
+      // Потом dispose() только если создавали сами
+      if (widget.focusNode == null) {
+        _focusNode.dispose();
+      }
+    } catch (e) {
+      // Игнорируем ошибки при dispose
     }
+    
     super.dispose();
   }
 
   void _onFocusChange() {
-    setState(() {
-      _isFocused = _focusNode.hasFocus;
-    });
+    if (mounted) {
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+    }
   }
 
   void _togglePasswordVisibility() {
-    setState(() {
-      _isPasswordVisible = !_isPasswordVisible;
-    });
+    if (mounted) {
+      setState(() {
+        _isPasswordVisible = !_isPasswordVisible;
+      });
+    }
   }
 
   @override
@@ -242,16 +253,22 @@ class _AppFormFieldState extends State<AppFormField> {
 
   @override
   void dispose() {
-    if (widget.focusNode == null) {
-      _focusNode.dispose();
+    try {
+      if (widget.focusNode == null) {
+        _focusNode.dispose();
+      }
+    } catch (e) {
+      // Игнорируем ошибки при dispose
     }
     super.dispose();
   }
 
   void _togglePasswordVisibility() {
-    setState(() {
-      _isPasswordVisible = !_isPasswordVisible;
-    });
+    if (mounted) {
+      setState(() {
+        _isPasswordVisible = !_isPasswordVisible;
+      });
+    }
   }
 
   @override

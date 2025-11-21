@@ -3,12 +3,12 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:rxdart/rxdart.dart';
 import '../../../../models/api_models.dart';
-import '../../../../services/api_service_static.dart';
-import '../../../../services/api_service.dart' show ApiServiceDio;
 import '../../../../services/auth_service_instance.dart';
+import '../../../../services/strapi_service.dart';
 import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/utils/filter_mixin.dart';
 import '../../../../core/utils/logger.dart';
+import '../../data/datasources/routes_strapi_datasource.dart';
 
 part 'routes_event.dart';
 part 'routes_state.dart';
@@ -20,8 +20,9 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
     'Сначала новые',
   ];
 
-  final ApiServiceDio _apiService;
+  final StrapiService _strapiService;
   final AuthService _authService;
+  final RoutesStrapiDatasource _strapiDatasource;
 
   // Кеширование данных
   List<AppRoute>? _cachedRoutes;
@@ -30,10 +31,12 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
   DateTime? _lastRoutesLoad;
 
   RoutesBloc({
-    required ApiServiceDio apiService,
+    required StrapiService strapiService,
     required AuthService authService,
-  })  : _apiService = apiService,
+    RoutesStrapiDatasource? strapiDatasource,
+  })  : _strapiService = strapiService,
         _authService = authService,
+        _strapiDatasource = strapiDatasource ?? RoutesStrapiDatasource(),
         super(RoutesInitial()) {
     on<LoadRoutes>(_onLoadRoutes);
     on<ApplyFilters>(_onApplyFilters, transformer: _debounceFilter(const Duration(milliseconds: 300)));
@@ -87,8 +90,10 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
     emit(RoutesLoading());
     
     try {
-      // Загружаем маршруты
-      final routes = await _apiService.getRoutes();
+      // Загружаем маршруты из Strapi
+      AppLogger.debug('📡 Загрузка маршрутов из Strapi...');
+      final routes = await _strapiDatasource.getRoutesFromStrapi();
+      AppLogger.debug('✅ Загружено маршрутов из Strapi: ${routes.length}');
       
       // Загружаем изображения для маршрутов (быстро, синхронно)
       final routeImages = _loadRouteImages(routes);
@@ -159,16 +164,17 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
   }
 
   Future<Map<int, bool>> _loadFavoriteStatuses(List<AppRoute> routes) async {
-    final token = await _authService.getToken();
-    if (token == null) {
-      // Если нет токена, все маршруты не в избранном
-      return {for (final route in routes) route.id: false};
-    }
-
     try {
-      // Загружаем статусы избранного одним запросом или параллельными запросами
+      // Получаем userId из Strapi
+      final userId = await _strapiService.getCurrentUserId();
+      if (userId == null) {
+        // Если нет userId, все маршруты не в избранном
+        return {for (final route in routes) route.id: false};
+      }
+
+      // Загружаем статусы избранного одним запросом
       final routeIds = routes.map((route) => route.id).toList();
-      return await _apiService.getFavoriteStatusesForRoutes(routeIds, token);
+      return await _strapiService.getFavoriteStatusesForRoutes(routeIds, userId);
     } catch (e) {
       // В случае ошибки возвращаем все как false
       return {for (final route in routes) route.id: false};
@@ -242,29 +248,31 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
     if (state is! RoutesLoaded) return;
     
     final currentState = state as RoutesLoaded;
-    final token = await _authService.getToken();
     
-    if (token == null) {
-      // Ошибка авторизации будет обработана на уровне UI через snackbar
-      return;
-    }
-
-    // Сохраняем текущее состояние для отката в случае ошибки
-    final currentStatus = currentState.favoriteStatus[event.routeId] ?? false;
-    final newFavoriteStatus = Map<int, bool>.from(currentState.favoriteStatus);
-    newFavoriteStatus[event.routeId] = !currentStatus;
-    
-    // Оптимистично обновляем UI
-    emit(currentState.copyWith(
-      favoriteStatus: newFavoriteStatus,
-      isLoading: true,
-    ));
-
     try {
+      // Получаем userId из Strapi
+      final userId = await _strapiService.getCurrentUserId();
+      
+      if (userId == null) {
+        // Ошибка авторизации будет обработана на уровне UI через snackbar
+        return;
+      }
+
+      // Сохраняем текущее состояние для отката в случае ошибки
+      final currentStatus = currentState.favoriteStatus[event.routeId] ?? false;
+      final newFavoriteStatus = Map<int, bool>.from(currentState.favoriteStatus);
+      newFavoriteStatus[event.routeId] = !currentStatus;
+      
+      // Оптимистично обновляем UI
+      emit(currentState.copyWith(
+        favoriteStatus: newFavoriteStatus,
+        isLoading: true,
+      ));
+
       if (currentStatus) {
-        await _apiService.removeRouteFromFavorites(event.routeId, token);
+        await _strapiService.removeRouteFromFavorites(event.routeId, userId);
       } else {
-        await _apiService.addRouteToFavorites(event.routeId, token);
+        await _strapiService.addRouteToFavorites(event.routeId, userId);
       }
       
       // Обновляем кешированные статусы избранного
@@ -277,6 +285,8 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> with FilterMixin {
       ));
     } catch (e) {
       // Откатываем изменения при ошибке
+      final newFavoriteStatus = Map<int, bool>.from(currentState.favoriteStatus);
+      final currentStatus = currentState.favoriteStatus[event.routeId] ?? false;
       newFavoriteStatus[event.routeId] = currentStatus;
       emit(currentState.copyWith(
         favoriteStatus: newFavoriteStatus,

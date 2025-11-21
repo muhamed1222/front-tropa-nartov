@@ -6,7 +6,6 @@ import '../../../../core/constants/app_design_system.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../utils/smooth_border_radius.dart';
-import '../../../../services/api_service_static.dart';
 import '../../../../config/app_config.dart';
 
 /// Виджет секции профиля пользователя

@@ -28,10 +28,14 @@ class _WidgetsShowcasePageState extends State<WidgetsShowcasePage> {
 
   @override
   void dispose() {
-    _textController.dispose();
-    _passwordController.dispose();
-    _emailController.dispose();
-    _searchController.dispose();
+    try {
+      _textController.dispose();
+      _passwordController.dispose();
+      _emailController.dispose();
+      _searchController.dispose();
+    } catch (e) {
+      // Игнорируем ошибки при dispose
+    }
     super.dispose();
   }
 
