@@ -13,6 +13,7 @@ import 'package:tropanartov/features/places/data/mappers/place_mapper.dart';
 import '../bloc/favourites_bloc.dart';
 import 'route_details_sheet_simple.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../../core/widgets/place_card.dart';
 
 class FavouritesWidget extends StatefulWidget {
   final ScrollController scrollController;
@@ -443,7 +444,14 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
         ),
         itemCount: state.favoritePlaces.length,
         itemBuilder: (context, index) {
-          return _buildPlaceCard(state, state.favoritePlaces[index], index);
+          final place = state.favoritePlaces[index];
+          return PlaceCard(
+            place: place,
+            isFavorite: true, // Всегда true, так как это экран избранного
+            isVisited: false, // TODO: добавить проверку посещенных мест
+            onTap: () => _showPlaceDetails(place),
+            onFavoriteTap: () => _showDeleteDialog(state, isPlace: true, index: index),
+          );
         },
       );
     } else {
@@ -464,136 +472,6 @@ class _FavouritesWidgetState extends State<FavouritesWidget> with WidgetsBinding
         },
       );
     }
-  }
-
-  Widget _buildPlaceCard(FavouritesLoaded state, Place place, int index) {
-    return GestureDetector(
-      onTap: () => _showPlaceDetails(place),
-      child: SmoothContainer(
-        width: 187,
-        height: 260,
-        borderRadius: 16,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              Color(0x66000000),
-            ],
-            stops: [0.5, 1.0],
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Фото места
-            Positioned.fill(
-              child: ClipPath(
-                clipper: SmoothBorderClipper(radius: 16),
-                child: place.images.isNotEmpty
-                    ? Image.network(
-                  place.images.first.url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, error, stackTrace) => Container(
-                    color: AppDesignSystem.greyPlaceholder,
-                    child: Icon(Icons.photo_camera, size: 48, color: AppDesignSystem.primaryColor),
-                  ),
-                )
-                    : Container(
-                  color: AppDesignSystem.greyPlaceholder,
-                  child: Icon(Icons.photo_camera, size: 48, color: AppDesignSystem.primaryColor),
-                ),
-              ),
-            ),
-
-            // Контент карточки
-            SmoothContainer(
-              width: double.infinity,
-              height: double.infinity,
-              padding: const EdgeInsets.all(10),
-              borderRadius: 16,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x33000000),
-                    Color(0x66000000),
-                  ],
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Верхняя часть - тип места и иконка избранного
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Кнопка типа места
-                      SmoothContainer(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        borderRadius: 26,
-                        child: Text(
-                          place.type,
-                          style: AppTextStyles.small(
-                            color: AppDesignSystem.whiteColor,
-                          ),
-                        ),
-                      ),
-
-                      // Иконка избранного
-                      GestureDetector(
-                        onTap: () {
-                          _showDeleteDialog(state, isPlace: true, index: index);
-                        },
-                        behavior: HitTestBehavior.opaque,
-                        child: Icon(
-                          Icons.bookmark,
-                          color: AppDesignSystem.whiteColor,
-                          size: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Нижняя часть - название и описание
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Название места
-                      Text(
-                        place.name,
-                        style: AppTextStyles.small(
-                          color: AppDesignSystem.whiteColor,
-                          fontWeight: AppDesignSystem.fontWeightSemiBold,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      // Описание места
-                      Text(
-                        place.description.length > 100
-                            ? '${place.description.substring(0, 100)}...'
-                            : place.description,
-                        style: AppTextStyles.small(
-                          color: AppDesignSystem.whiteColor.withValues(alpha: 0.6),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildRouteCard(FavouritesLoaded state, AppRoute route, int index) {

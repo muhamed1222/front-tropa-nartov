@@ -36,20 +36,11 @@ class PlaceCard extends StatelessWidget {
         ? place.images[currentImageIndex].url
         : null;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Ширина карточки = половина доступной ширины минус отступ между карточками
-        // constraints.maxWidth уже учитывает padding контейнера (14px с каждой стороны)
-        final availableWidth = constraints.maxWidth;
-        final spacing = AppDesignSystem.spacingMedium; // Отступ между карточками (12px)
-        final cardWidth = (availableWidth - spacing) / 2; // 2 карточки + 1 отступ между ними
-        final cardHeight = 260.0; // Фиксированная высота по дизайну
-
-        return GestureDetector(
+    return GestureDetector(
           onTap: onTap,
           child: SmoothContainer(
-            width: cardWidth,
-            height: cardHeight,
+            width: double.infinity, // Используем всю доступную ширину
+            height: double.infinity, // Используем всю доступную высоту
             borderRadius: 16.0, // По дизайну из Figma
             child: Stack(
               children: [
@@ -213,8 +204,6 @@ class PlaceCard extends StatelessWidget {
             ),
           ),
         );
-      },
-    );
   }
 }
 

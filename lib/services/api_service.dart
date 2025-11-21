@@ -126,7 +126,7 @@ class ApiServiceDio {
         statusCode: null,
         originalMessage: 'Connection error',
       );
-    } else {
+      } else {
       return ApiException(
         message: e.message ?? 'Неизвестная ошибка',
         statusCode: null,
@@ -479,7 +479,7 @@ class ApiServiceDio {
           try {
             final isFavorite = await isRouteFavorite(routeId, token);
             return MapEntry(routeId, isFavorite);
-          } catch (e) {
+    } catch (e) {
             AppLogger.warning('Failed to get favorite status for route $routeId: $e');
             return MapEntry(routeId, false);
           }
@@ -630,12 +630,23 @@ class ApiServiceDio {
         '/user/statistics',
         options: options,
       );
+      
+      // Проверка на пустой ответ или null
+      if (response.data == null || response.data == '' || (response.data is Map && (response.data as Map).isEmpty)) {
+        AppLogger.warning('getUserStatistics: API вернул пустой ответ, используем значения по умолчанию');
+        return {'visitedPlaces': 0, 'completedRoutes': 0};
+      }
+      
       return Map<String, int>.from(response.data as Map);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
         return {'visitedPlaces': 0, 'completedRoutes': 0};
       }
       rethrow;
+    } catch (e) {
+      // Обработка других ошибок (например, type cast)
+      AppLogger.error('getUserStatistics: Ошибка парсинга ответа - $e');
+      return {'visitedPlaces': 0, 'completedRoutes': 0};
     }
   }
 
